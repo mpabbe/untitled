@@ -3,8 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Qurilish holati
 enum BuildingStatus {
   notStarted,   // Бошланмаган
-  inProgress,   // Жараёнда
-  finished,     // Тугалланган
+  inProgress,   // Жараёнда 
+  completed,    // Тугалланган
+  paused        // Тўхтатилган
+}
+
+/// Material status
+enum MaterialStatus { 
+  complete,   // Тўлиқ
+  shortage,   // Камчилик
+  critical    // Критик
 }
 
 /// Bino model
@@ -17,9 +25,14 @@ class Building {
   final String? verificationPerson;
   final BuildingStatus status;
   final String? kolodetsStatus;
-  final List<String> images;
-  final List<Map<String, String>> customData;
+  final String? builder;
+  final String? schemeUrl;
   final DateTime createdAt;
+  final List<String> images;
+  final List<Map<String, String>> customData; // Keep for backward compatibility
+  final List<Map<String, dynamic>> availableMaterials;
+  final List<Map<String, dynamic>> requiredMaterials;
+  final MaterialStatus materialStatus;
 
   Building({
     required this.id,
@@ -30,9 +43,14 @@ class Building {
     this.verificationPerson,
     required this.status,
     this.kolodetsStatus,
+    this.builder,
+    this.schemeUrl,
+    required this.createdAt,
     required this.images,
     required this.customData,
-    required this.createdAt,
+    required this.availableMaterials,
+    required this.requiredMaterials,
+    required this.materialStatus,
   });
 
   Map<String, dynamic> toMap() {
@@ -43,46 +61,53 @@ class Building {
       'uniqueName': uniqueName,
       'regionName': regionName,
       'verificationPerson': verificationPerson,
-      'status': status.name,
+      'status': status.index,
       'kolodetsStatus': kolodetsStatus,
+      'builder': builder,
+      'schemeUrl': schemeUrl,
+      'createdAt': createdAt.toIso8601String(),
       'images': images,
       'customData': customData,
-      'createdAt': createdAt.toIso8601String(),
+      'availableMaterials': availableMaterials,
+      'requiredMaterials': requiredMaterials,
+      'materialStatus': materialStatus.index,
     };
   }
 
   factory Building.fromMap(Map<String, dynamic> map) {
     return Building(
       id: map['id'] ?? '',
-      latitude: (map['latitude'] ?? 0).toDouble(),
-      longitude: (map['longitude'] ?? 0).toDouble(),
+      latitude: (map['latitude'] ?? 0.0).toDouble(),
+      longitude: (map['longitude'] ?? 0.0).toDouble(),
       uniqueName: map['uniqueName'] ?? '',
       regionName: map['regionName'] ?? '',
       verificationPerson: map['verificationPerson'],
-      status: _parseStatus(map['status']),
+      status: BuildingStatus.values[map['status'] ?? 0],
       kolodetsStatus: map['kolodetsStatus'],
+      builder: map['builder'],
+      schemeUrl: map['schemeUrl'],
+      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
       images: List<String>.from(map['images'] ?? []),
       customData: List<Map<String, String>>.from(
-        map['customData']?.map((e) => Map<String, String>.from(e)) ?? [],
+        (map['customData'] ?? []).map((item) => Map<String, String>.from(item)),
       ),
-      createdAt: DateTime.parse(map['createdAt']),
+      availableMaterials: List<Map<String, dynamic>>.from(
+        (map['availableMaterials'] ?? []).map((item) => Map<String, dynamic>.from(item)),
+      ),
+      requiredMaterials: List<Map<String, dynamic>>.from(
+        (map['requiredMaterials'] ?? []).map((item) => Map<String, dynamic>.from(item)),
+      ),
+      materialStatus: MaterialStatus.values[map['materialStatus'] ?? 0],
     );
   }
 
   factory Building.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    return Building.fromMap(data);
+    return Building.fromMap({...data, 'id': doc.id});
   }
 
-  static BuildingStatus _parseStatus(String? status) {
-    switch (status) {
-      case 'inProgress':
-        return BuildingStatus.inProgress;
-      case 'finished':
-        return BuildingStatus.finished;
-      case 'notStarted':
-      default:
-        return BuildingStatus.notStarted;
-    }
+  @override
+  String toString() {
+    return 'Building(id: $id, uniqueName: $uniqueName, status: $status)';
   }
 }
