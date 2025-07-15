@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../models/building.dart';
-import '../models/material_item.dart';
-import '../services/firebase_service.dart';
-import '../services/material_service.dart';
-
+import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
+import 'dart:io';
 import '../models/building.dart';
 import '../models/material_item.dart';
 import '../services/firebase_service.dart';
@@ -30,10 +30,9 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   final _serialNumberController = TextEditingController();
   final _locationNameController = TextEditingController();
   final _uniqueNameController = TextEditingController();
-  final _regionNameController = TextEditingController();
   final _schemeUrlController = TextEditingController();
   final _kolodetsConditionController = TextEditingController();
-  final _commentController = TextEditingController(); // Yangi izoh controller
+  final _commentController = TextEditingController();
   final List<TextEditingController> _imageUrlControllers = [TextEditingController()];
 
   // Dropdown selections
@@ -56,14 +55,15 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   bool _isSaving = false;
   bool _isLoadingMaterials = true;
   bool _isLoadingBuilders = true;
+  bool _isLoadingVerifiers = true;
 
   // Data from Firebase
   List<MaterialItem> _materials = [];
   List<String> _builders = [];
+  List<String> _verifiers = [];
   final MaterialService _materialService = MaterialService();
 
-  // Static data
-  final _tasdiqlovchilar = ['Алишер Каримов', 'Шахноз Иброҳимова', 'Бобур Раҳимов'];
+  // Static data - faqat kolodets status qoladi
   final _kolodetsStatusList = ['Бор', 'Йўқ'];
 
   @override
@@ -92,9 +92,8 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     
     // Other controllers
     _uniqueNameController.dispose();
-    _regionNameController.dispose();
     _schemeUrlController.dispose();
-    _commentController.dispose(); // Yangi controller dispose
+    _commentController.dispose();
     
     for (final controller in _imageUrlControllers) {
       controller.dispose();
@@ -107,24 +106,29 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     setState(() {
       _isLoadingMaterials = true;
       _isLoadingBuilders = true;
+      _isLoadingVerifiers = true;
     });
 
     try {
       final results = await Future.wait([
         _materialService.getMaterials(),
         _materialService.getBuilders(),
+        _materialService.getVerifiers(),
       ]);
 
       setState(() {
         _materials = results[0] as List<MaterialItem>;
         _builders = results[1] as List<String>;
+        _verifiers = results[2] as List<String>;
         _isLoadingMaterials = false;
         _isLoadingBuilders = false;
+        _isLoadingVerifiers = false;
       });
     } catch (e) {
       setState(() {
         _isLoadingMaterials = false;
         _isLoadingBuilders = false;
+        _isLoadingVerifiers = false;
       });
       _showErrorSnackBar('Маълумотларни юклашда хатолик: $e');
     }
@@ -195,9 +199,17 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     }
@@ -207,9 +219,17 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     }
@@ -242,7 +262,15 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         _showErrorSnackBar('Барча керакли материаллар учун миқдор киритинг');
         return false;
       }
+      
+      final quantity = double.tryParse(_requiredQuantityControllers[i].text.trim());
+      if (quantity == null || quantity <= 0) {
+        _showErrorSnackBar('Миқдор тўғри сон бўлиши керак');
+        return false;
+      }
     }
+    
+    print('Material validation passed'); // Debug
     return true;
   }
 
@@ -298,19 +326,16 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_validateMaterialSelections()) return;
 
     setState(() => _isSaving = true);
 
     try {
       final id = DateTime.now().millisecondsSinceEpoch.toString();
+      final List<String> imageUrls = [];
 
-      final imageUrls = _imageUrlControllers
-          .map((controller) => controller.text.trim())
-          .where((url) => url.isNotEmpty)
-          .toList();
-
-      final requiredMaterialsData = <Map<String, dynamic>>[];
-      final availableMaterialsData = <Map<String, dynamic>>[];
+      final List<Map<String, dynamic>> requiredMaterialsData = [];
+      final List<Map<String, dynamic>> availableMaterialsData = [];
 
       // Process required materials
       for (int i = 0; i < _selectedRequiredMaterials.length; i++) {
@@ -323,11 +348,13 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           final materialUnit = _getMaterialUnitById(materialId);
           final parsedQuantity = double.tryParse(quantity) ?? 0;
 
+          print('Processing required material $i: ID=$materialId, Name=$materialName, Quantity=$quantity, Size=$size'); // Debug
+
           if (parsedQuantity > 0) {
             requiredMaterialsData.add({
               'materialId': materialId,
               'materialName': materialName,
-              'quantity': parsedQuantity.toString(),
+              'quantity': quantity, // String sifatida saqlash
               'unit': materialUnit,
               'size': size.isNotEmpty ? size : null,
             });
@@ -346,11 +373,13 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           final materialUnit = _getMaterialUnitById(materialId);
           final parsedQuantity = double.tryParse(quantity) ?? 0;
 
+          print('Processing available material $i: ID=$materialId, Name=$materialName, Quantity=$quantity, Size=$size'); // Debug
+
           if (parsedQuantity > 0) {
             availableMaterialsData.add({
               'materialId': materialId,
               'materialName': materialName,
-              'quantity': parsedQuantity.toString(),
+              'quantity': quantity, // String sifatida saqlash
               'unit': materialUnit,
               'size': size.isNotEmpty ? size : null,
               'addedAt': DateTime.now().toIso8601String(),
@@ -358,6 +387,9 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           }
         }
       }
+
+      print('Final required materials data: $requiredMaterialsData'); // Debug
+      print('Final available materials data: $availableMaterialsData'); // Debug
 
       // Calculate material status
       final materialStatus = _calculateMaterialStatus(
@@ -370,10 +402,10 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         latitude: widget.latitude,
         longitude: widget.longitude,
         uniqueName: _serialNumberController.text.trim(),
-        regionName: _locationNameController.text.trim(), // locationName ni regionName sifatida ishlatish
+        regionName: _locationNameController.text.trim(),
         verificationPerson: _selectedVerificationPerson,
         kolodetsStatus: _selectedKolodetsStatus,
-        builders: _selectedBuilders.isNotEmpty ? _selectedBuilders : null, // builder o'rniga builders
+        builders: _selectedBuilders.isNotEmpty ? _selectedBuilders : null,
         schemeUrl: _schemeUrlController.text.trim().isEmpty
             ? null
             : _schemeUrlController.text.trim(),
@@ -389,14 +421,27 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         createdAt: DateTime.now(),
       );
 
-      await FirebaseService.saveBuilding(building);
+      print('Building object created: ${building.toJson()}'); // Debug
 
-      setState(() => _isSaving = false);
-      _showSuccessSnackBar('Бино муваффақиятли қўшилди');
-      Navigator.pop(context, true);
+      await FirebaseService.saveBuilding(building);
+      
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Бино муваффақиятли қўшилди'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
+      print('Error saving building: $e'); // Debug
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Хатолик: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
       setState(() => _isSaving = false);
-      _showErrorSnackBar('Хатолик: $e');
     }
   }
 
@@ -481,43 +526,45 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
             ),
             SizedBox(height: 16),
 
-            // Region Name
-            TextFormField(
-              controller: _regionNameController,
-              decoration: InputDecoration(
-                labelText: 'Ҳудуд номи *',
-                prefixIcon: Icon(Icons.map),
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Ҳудуд номини киритинг';
-                }
-                return null;
-              },
-            ),
-            SizedBox(height: 16),
-
             // Verification person dropdown
             DropdownButtonFormField<String>(
               value: _selectedVerificationPerson,
               decoration: InputDecoration(
                 labelText: 'Тасдиқловчи *',
-
                 prefixIcon: Icon(Icons.person),
                 border: OutlineInputBorder(),
               ),
-              items: _tasdiqlovchilar.map((person) => DropdownMenuItem(
-                value: person,
-                child: Text(person),
-              )).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedVerificationPerson = value;
-                });
+              items: [
+                if (_isLoadingVerifiers)
+                  DropdownMenuItem(value: null, child: Text('Юкланмоқда...'))
+                else ...[
+                  ..._verifiers.map((person) => DropdownMenuItem(
+                    value: person,
+                    child: Text(person),
+                  )),
+                  DropdownMenuItem(
+                    value: 'add_new_verifier',
+                    child: Row(
+                      children: [
+                        Icon(Icons.add, size: 16, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Янги тасдиқловчи қўшиш', style: TextStyle(color: Colors.green)),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+              onChanged: _isLoadingVerifiers ? null : (value) {
+                if (value == 'add_new_verifier') {
+                  _showAddVerifierDialog();
+                } else {
+                  setState(() {
+                    _selectedVerificationPerson = value;
+                  });
+                }
               },
               validator: (value) {
-                if (value == null) {
+                if (value == null || value == 'add_new_verifier') {
                   return 'Тасдиқловчини танланг';
                 }
                 return null;
@@ -1305,6 +1352,119 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 }
               },
               child: Text(isAddingNew ? 'Яратиш' : 'Қўшиш'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAddVerifierDialog() async {
+    final verifierController = TextEditingController();
+    bool isLoading = false;
+    
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.person_add, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Янги тасдиқловчи қўшиш'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: verifierController,
+                decoration: InputDecoration(
+                  labelText: 'Тасдиқловчи исми *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person, color: Colors.green),
+                  hintText: 'Масалан: Алишер Каримов',
+                ),
+                autofocus: true,
+                enabled: !isLoading,
+                textCapitalization: TextCapitalization.words,
+              ),
+              if (isLoading) ...[
+                SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Firestore\'га сақланмоқда...'),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context, false),
+              child: Text('Бекор қилиш'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading ? null : () async {
+                final verifierName = verifierController.text.trim();
+                
+                if (verifierName.isEmpty) {
+                  _showErrorSnackBar('Тасдиқловчи исмини киритинг');
+                  return;
+                }
+                
+                if (verifierName.length < 3) {
+                  _showErrorSnackBar('Исм камида 3 та ҳарфдан иборат бўлиши керак');
+                  return;
+                }
+                
+                setDialogState(() => isLoading = true);
+                
+                try {
+                  print('Checking if verifier exists: $verifierName'); // Debug
+                  final exists = await _materialService.verifierExists(verifierName);
+                  print('Verifier exists: $exists'); // Debug
+                  
+                  if (exists) {
+                    _showErrorSnackBar('Бу тасдиқловчи аллақачон мавжуд');
+                    setDialogState(() => isLoading = false);
+                    return;
+                  }
+                  
+                  print('Adding verifier to Firestore: $verifierName'); // Debug
+                  await _materialService.addVerifier(verifierName);
+                  print('Verifier added successfully'); // Debug
+                  
+                  print('Refreshing verifiers list...'); // Debug
+                  final verifiers = await _materialService.getVerifiers(forceRefresh: true);
+                  print('Updated verifiers list: $verifiers'); // Debug
+                  
+                  setState(() {
+                    _verifiers = verifiers;
+                    _selectedVerificationPerson = verifierName;
+                  });
+                  
+                  Navigator.pop(context, true);
+                  _showSuccessSnackBar('Тасдиқловчи муваффақиятли қўшилди: $verifierName');
+                } catch (e) {
+                  print('Error adding verifier: $e'); // Debug
+                  _showErrorSnackBar('Хатолик: $e');
+                  setDialogState(() => isLoading = false);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Firestore\'га қўшиш'),
             ),
           ],
         ),

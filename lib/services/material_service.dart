@@ -2,15 +2,26 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/material_item.dart';
 
 class MaterialService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final MaterialService _instance = MaterialService._internal();
+  factory MaterialService() => _instance;
+  MaterialService._internal();
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // Collection names
   static const String _materialsCollection = 'materials';
   static const String _buildersCollection = 'builders';
-
-  // Cache for materials to avoid frequent Firebase calls
-  static List<MaterialItem>? _cachedMaterials;
-  static List<String>? _cachedBuilders;
-  static DateTime? _lastMaterialsFetch;
-  static DateTime? _lastBuildersFetch;
+  static const String _verifiersCollection = 'verifiers'; // Bu collection Firestore'da mavjudmi?
+  
+  // Cache variables
+  List<MaterialItem>? _cachedMaterials;
+  List<String>? _cachedBuilders;
+  List<String>? _cachedVerifiers;
+  DateTime? _lastMaterialsFetch;
+  DateTime? _lastBuildersFetch;
+  DateTime? _lastVerifiersFetch;
+  
+  // Cache expiry duration
   static const Duration _cacheExpiry = Duration(minutes: 5);
 
   // Get all materials with caching
@@ -150,12 +161,116 @@ class MaterialService {
     }
   }
 
+  // Get all verifiers with caching
+  Future<List<String>> getVerifiers({bool forceRefresh = false}) async {
+    final now = DateTime.now();
+    
+    // Return cached data if available and not expired
+    if (!forceRefresh && 
+        _cachedVerifiers != null && 
+        _lastVerifiersFetch != null &&
+        now.difference(_lastVerifiersFetch!) < _cacheExpiry) {
+      print('Returning cached verifiers: $_cachedVerifiers'); // Debug
+      return _cachedVerifiers!;
+    }
+
+    try {
+      print('Fetching verifiers from Firestore...'); // Debug
+      final snapshot = await _firestore
+          .collection(_verifiersCollection)
+          .orderBy('name')
+          .get();
+
+      print('Firestore snapshot docs count: ${snapshot.docs.length}'); // Debug
+
+      final verifiers = snapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            print('Verifier doc data: $data'); // Debug
+            return data['name'] as String;
+          })
+          .toList();
+
+      print('Processed verifiers: $verifiers'); // Debug
+
+      // Update cache
+      _cachedVerifiers = verifiers;
+      _lastVerifiersFetch = now;
+
+      return verifiers;
+    } catch (e) {
+      print('Error in getVerifiers: $e'); // Debug
+      // Return cached data if available, otherwise default list
+      final fallbackVerifiers = _cachedVerifiers ?? [
+        'Мансур ака',
+        'Нурназар Равшанов', 
+        'Кобил ака',
+      ];
+      print('Returning fallback verifiers: $fallbackVerifiers'); // Debug
+      return fallbackVerifiers;
+    }
+  }
+
+  // Add new verifier
+  Future<void> addVerifier(String verifierName) async {
+    try {
+      final id = DateTime.now().millisecondsSinceEpoch.toString();
+      print('Adding verifier with ID: $id, Name: $verifierName'); // Debug
+      
+      final docData = {
+        'name': verifierName.trim(),
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      print('Document data: $docData'); // Debug
+      
+      await _firestore
+          .collection(_verifiersCollection)
+          .doc(id)
+          .set(docData);
+      
+      print('Verifier added to Firestore successfully'); // Debug
+      
+      // Clear cache to force refresh
+      _cachedVerifiers = null;
+      _lastVerifiersFetch = null;
+      print('Cache cleared'); // Debug
+    } catch (e) {
+      print('Error in addVerifier: $e'); // Debug
+      throw Exception('Failed to add verifier: $e');
+    }
+  }
+
+  // Check if verifier exists
+  Future<bool> verifierExists(String name) async {
+    try {
+      print('Checking if verifier exists: $name'); // Debug
+      final snapshot = await _firestore
+          .collection(_verifiersCollection)
+          .where('name', isEqualTo: name.trim())
+          .limit(1)
+          .get();
+
+      final exists = snapshot.docs.isNotEmpty;
+      print('Verifier exists result: $exists, docs count: ${snapshot.docs.length}'); // Debug
+      return exists;
+    } catch (e) {
+      print('Error in verifierExists: $e'); // Debug
+      return false;
+    }
+  }
+
   // Clear all caches
   static void clearCache() {
-    _cachedMaterials = null;
-    _cachedBuilders = null;
-    _lastMaterialsFetch = null;
-    _lastBuildersFetch = null;
+    // _cachedMaterials = null;
+    // _cachedBuilders = null;
+    // _lastMaterialsFetch = null;
+    // _lastBuildersFetch = null;
   }
 }
+
+
+
+
+
+
 

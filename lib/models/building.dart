@@ -25,7 +25,7 @@ class Building {
   final String? verificationPerson;
   final BuildingStatus status;
   final String? kolodetsStatus;
-  final List<String>? builders; // String? builder o'rniga List<String>? builders
+  final List<String>? builders;
   final String? schemeUrl;
   final String? comment;
   final DateTime createdAt;
@@ -44,7 +44,7 @@ class Building {
     this.verificationPerson,
     required this.status,
     this.kolodetsStatus,
-    this.builders, // builder o'rniga builders
+    this.builders,
     this.schemeUrl,
     this.comment,
     required this.createdAt,
@@ -99,15 +99,15 @@ class Building {
       'verificationPerson': verificationPerson,
       'status': status.toString().split('.').last,
       'kolodetsStatus': kolodetsStatus,
-      'builders': builders, // builder o'rniga builders
+      'builders': builders,
       'schemeUrl': schemeUrl,
       'comment': comment,
       'createdAt': createdAt.toIso8601String(),
       'images': images,
       'customData': customData,
       'materialStatus': materialStatus?.toString().split('.').last,
-      'availableMaterials': availableMaterials,
-      'requiredMaterials': requiredMaterials,
+      'availableMaterials': availableMaterials, // Bu to'g'ri saqlanishi kerak
+      'requiredMaterials': requiredMaterials,   // Bu ham to'g'ri saqlanishi kerak
     };
   }
 
