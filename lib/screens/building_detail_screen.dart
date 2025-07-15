@@ -934,6 +934,8 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     );
   }
 
+
+
   Widget _buildKolodetsDropdown() {
     final kolodetsStatusList = ['Бор', 'Йўқ', 'Номаълум'];
     

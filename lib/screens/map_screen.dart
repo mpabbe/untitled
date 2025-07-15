@@ -32,11 +32,18 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? _currentLocation;
   bool _showSearchResults = false;
 
+  // O'zbekiston chegaralari (asosiy shaharlar atrofida)
+  static LatLngBounds _uzbekistanBounds = LatLngBounds(
+    LatLng(37.184, 55.997), // Termez atrofi (South-West)
+    LatLng(45.590, 73.055), // Zarafshon atrofi (North-East)
+  );
+
   @override
   void initState() {
     super.initState();
     _loadBuildings();
     _getCurrentLocation();
+    _loadKml();
 
     // Search controller listener
     _searchController.addListener(() {
@@ -46,7 +53,6 @@ class _MapScreenState extends State<MapScreen> {
     _searchFocusNode.addListener(() {
       setState(() => _showSearchResults = _searchFocusNode.hasFocus && _searchController.text.isNotEmpty);
     });
-    _loadKml();
   }
 
   void _loadBuildings() {
@@ -247,6 +253,19 @@ class _MapScreenState extends State<MapScreen> {
     return Icon(icon, size: 20, color: _getStatusColor(status));
   }
 
+  IconData _getStatusIcon(BuildingStatus status) {
+    switch (status) {
+      case BuildingStatus.notStarted:
+        return Icons.hourglass_empty;
+      case BuildingStatus.inProgress:
+        return Icons.autorenew;
+      case BuildingStatus.completed:
+        return Icons.check_circle_outline;
+      case BuildingStatus.paused:
+        return Icons.pause_circle_outline;
+    }
+  }
+
   Color _getStatusColor(BuildingStatus status) {
     switch (status) {
       case BuildingStatus.notStarted:
@@ -297,17 +316,28 @@ class _MapScreenState extends State<MapScreen> {
     final isWindows = Platform.isWindows;
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       body: Row(
         children: [
           Expanded(
             flex: 5,
             child: Stack(
               children: [
+                // Map
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
                     initialCenter: _center,
                     initialZoom: 14,
+                    minZoom: 6.0,
+                    maxZoom: 18.0,
+                    // O'zbekiston chegaralari
+                    cameraConstraint: CameraConstraint.contain(
+                      bounds: LatLngBounds(
+                        LatLng(37.0, 55.0), // South-West (Janubiy-G'arbiy)
+                        LatLng(45.7, 73.2), // North-East (Shimoliy-Sharqiy)
+                      ),
+                    ),
                     onLongPress: (tapPosition, point) {
                       Navigator.push(
                         context,
@@ -325,6 +355,11 @@ class _MapScreenState extends State<MapScreen> {
                       urlTemplate: "https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png",
                       subdomains: ['a', 'b', 'c'],
                       userAgentPackageName: 'com.yourcompany.yourapp',
+                      // Faqat O'zbekiston hududida tile'lar yuklanadi
+                      tileBounds: LatLngBounds(
+                        LatLng(37.0, 55.0), // South-West
+                        LatLng(45.7, 73.2), // North-East
+                      ),
                     ),
                     if (_polylines.isNotEmpty)
                       PolylineLayer(polylines: _polylines),
@@ -335,142 +370,380 @@ class _MapScreenState extends State<MapScreen> {
                         maxClusterRadius: 60,
                         size: Size(40, 40),
                         markers: _buildMarkers(),
-                        builder: (context, markers) => CircleAvatar(
-                          backgroundColor: Colors.blue.shade700,
-                          child: Text(
-                            '${markers.length}',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        builder: (context, markers) => Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.blue.shade600, Colors.blue.shade800],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.blue.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${markers.length}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ],
                 ),
-                // Search input va natijalar
+
+                // Top controls
                 Positioned(
                   top: 20,
                   left: 20,
-                  right: 80,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  right: 20,
+                  child: Row(
                     children: [
-                      Material(
-                        elevation: 4,
-                        borderRadius: BorderRadius.circular(12),
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          onChanged: _onSearchChanged,
-                          decoration: InputDecoration(
-                            hintText: "Уник номи, жой номи ёки тасдиқловчи билан қидиринг...",
-                            prefixIcon: Icon(Icons.search),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
-                              icon: Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                _searchFocusNode.unfocus();
-                                setState(() => _showSearchResults = false);
-                              },
-                            )
-                                : null,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                      if (_showSearchResults && _searchResults.isNotEmpty)
-                        Container(
-                          margin: EdgeInsets.only(top: 6),
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 6,
-                                offset: Offset(0, 3),
+                      // Search section
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 20,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          constraints: BoxConstraints(
-                            maxHeight: 300,
-                          ),
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: _searchResults.length,
-                            itemBuilder: (context, index) {
-                              final building = _searchResults[index];
-                              return Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () => _onBuildingTap(building),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 6),
-                                    child: ListTile(
-                                      dense: true,
-                                      title: Text(building.uniqueName),
-                                      subtitle: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            building.verificationPerson ?? "Тасдиқловчи йўқ",
-                                            style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                                          ),
-                                          if (building.availableMaterials.isNotEmpty)
-                                            Text(
-                                              'Материаллар: ${building.availableMaterials.length} та',
-                                              style: TextStyle(color: Colors.green, fontSize: 10),
-                                            ),
-                                        ],
-                                      ),
+                              child: TextField(
+                                controller: _searchController,
+                                focusNode: _searchFocusNode,
+                                onChanged: _onSearchChanged,
+                                decoration: InputDecoration(
+                                  hintText: "Уник номи, жой номи ёки тасдиқловчи билан қидиринг...",
+                                  hintStyle: TextStyle(color: Colors.grey.shade500),
+                                  prefixIcon: Container(
+                                    margin: EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade50,
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
+                                    child: Icon(Icons.search, color: Colors.blue.shade600),
+                                  ),
+                                  suffixIcon: _searchController.text.isNotEmpty
+                                      ? IconButton(
+                                    icon: Icon(Icons.clear, color: Colors.grey.shade400),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _searchFocusNode.unfocus();
+                                      setState(() => _showSearchResults = false);
+                                    },
+                                  )
+                                      : null,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  contentPadding: EdgeInsets.symmetric(vertical: 16),
+                                ),
+                              ),
+                            ),
+
+                            // Search results
+                            if (_showSearchResults && _searchResults.isNotEmpty)
+                              Container(
+                                margin: EdgeInsets.only(top: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 20,
+                                      offset: Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                constraints: BoxConstraints(maxHeight: 300),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: ListView.separated(
+                                    shrinkWrap: true,
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    itemCount: _searchResults.length,
+                                    separatorBuilder: (context, index) => Divider(
+                                      height: 1,
+                                      color: Colors.grey.shade100,
+                                    ),
+                                    itemBuilder: (context, index) {
+                                      final building = _searchResults[index];
+                                      return Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () => _onBuildingTap(building),
+                                          child: Padding(
+                                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 40,
+                                                  height: 40,
+                                                  decoration: BoxDecoration(
+                                                    color: _getStatusColor(building.status).withOpacity(0.1),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    border: Border.all(
+                                                      color: _getStatusColor(building.status).withOpacity(0.3),
+                                                    ),
+                                                  ),
+                                                  child: Icon(
+                                                    _getStatusIcon(building.status),
+                                                    color: _getStatusColor(building.status),
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                                SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        building.uniqueName,
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.w600,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                      SizedBox(height: 2),
+                                                      Text(
+                                                        building.regionName,
+                                                        style: TextStyle(
+                                                          color: Colors.grey.shade600,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                      if (building.verificationPerson != null)
+                                                        Text(
+                                                          building.verificationPerson!,
+                                                          style: TextStyle(
+                                                            color: Colors.blue.shade600,
+                                                            fontSize: 11,
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                if (building.availableMaterials.isNotEmpty)
+                                                  Container(
+                                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.green.shade50,
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    child: Text(
+                                                      '${building.availableMaterials.length}',
+                                                      style: TextStyle(
+                                                        color: Colors.green.shade700,
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                          ],
                         ),
+                      ),
+                      SizedBox(width: 16),
+
+                      // Action buttons
+                      Column(
+                        children: [
+                          _buildActionButton(
+                            icon: Icons.explore,
+                            tooltip: 'Харитани текислаш',
+                            onPressed: _resetMapOrientation,
+                            color: Colors.blue,
+                          ),
+                          SizedBox(height: 8),
+                          _buildActionButton(
+                            icon: Icons.my_location,
+                            tooltip: 'Менинг жойим',
+                            onPressed: _getCurrentLocation,
+                            color: Colors.green,
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
 
+                // Statistics overlay
                 Positioned(
-                  top: 24,
-                  right: 20,
-                  child: FloatingActionButton(
-                    mini: true,
-                    tooltip: 'Харитани текислаш',
-                    onPressed: _resetMapOrientation,
-                    child: Icon(Icons.explore),
+                  bottom: 20,
+                  left: 20,
+                  child: Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildStatItem('Жами', _buildings.length, Colors.blue),
+                        SizedBox(width: 16),
+                        _buildStatItem('Тугалланган', _filterByStatus(BuildingStatus.completed).length, Colors.green),
+                        SizedBox(width: 16),
+                        _buildStatItem('Жараёнда', _filterByStatus(BuildingStatus.inProgress).length, Colors.orange),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+
+          // Sidebar for Windows
           if (isWindows)
-            Expanded(
-              flex: 1,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildStatusList("Бошланмаган", BuildingStatus.notStarted, Colors.grey),
-                    _buildStatusList("Жараёнда", BuildingStatus.inProgress, Colors.orange),
-                    _buildStatusList("Тугалланган", BuildingStatus.completed, Colors.green),
-                    _buildStatusList("Тўхтатилган", BuildingStatus.paused, Colors.red),
-                  ],
-                ),
+            Container(
+              width: 350,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(-2, 0),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue.shade600, Colors.blue.shade800],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.analytics, color: Colors.white, size: 24),
+                        SizedBox(width: 12),
+                        Text(
+                          'Лойиҳалар ҳолати',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          _buildStatusList("Бошланмаган", BuildingStatus.notStarted, Colors.grey),
+                          _buildStatusList("Жараёнда", BuildingStatus.inProgress, Colors.orange),
+                          _buildStatusList("Тугалланган", BuildingStatus.completed, Colors.green),
+                          _buildStatusList("Тўхтатилган", BuildingStatus.paused, Colors.red),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required Color color,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: 48,
+            height: 48,
+            child: Icon(icon, color: color, size: 24),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, int count, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          count.toString(),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
     );
   }
 }
