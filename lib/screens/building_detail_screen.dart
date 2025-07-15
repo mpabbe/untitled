@@ -17,28 +17,35 @@ class BuildingDetailScreen extends StatefulWidget {
 
 class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   late Building _building;
-  bool _isEditing = false;
-  bool _isSaving = false;
   
   // Controllers
   late TextEditingController _uniqueNameController;
   late TextEditingController _regionNameController;
   late TextEditingController _schemeUrlController;
+  late TextEditingController _commentController;
   
-  // Material controllers for editing
+  // Selected values
+  List<String> _selectedBuilders = []; // String? dan List<String> ga o'zgartirdik
+  String? _selectedInspector;
+  String? _selectedKolodetsStatus;
+  BuildingStatus _selectedStatus = BuildingStatus.notStarted;
+  
+  // Material controllers
   List<TextEditingController> _availableQuantityControllers = [];
   List<TextEditingController> _availableSizeControllers = [];
   
-  // Selected values
-  String? _selectedBuilder;
-  String? _selectedInspector;
-  String? _selectedKolodetsStatus;
-  late BuildingStatus _selectedStatus;
-  
-  // Firebase data
-  final MaterialService _materialService = MaterialService();
+  // State variables
+  bool _isEditing = false;
+  bool _isSaving = false;
+  bool _isLoadingMaterials = true;
+  bool _isLoadingBuilders = true;
+
+  // Data from Firebase
   List<String> _builders = [];
-  bool _isLoadingBuilders = false;
+  final MaterialService _materialService = MaterialService();
+  
+  // Static data
+  final List<String> _inspectors = ['Алишер Каримов', 'Шахноз Иброҳимова', 'Бобур Раҳимов'];
 
   @override
   void initState() {
@@ -52,13 +59,14 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     _uniqueNameController = TextEditingController(text: _building.uniqueName);
     _regionNameController = TextEditingController(text: _building.regionName);
     _schemeUrlController = TextEditingController(text: _building.schemeUrl ?? '');
+    _commentController = TextEditingController(text: _building.comment ?? '');
     
-    _selectedBuilder = _building.builder;
+    // Initialize selected values
+    _selectedBuilders = _building.builders?.toList() ?? []; // builders list dan olish
     _selectedInspector = _building.verificationPerson;
     _selectedKolodetsStatus = _building.kolodetsStatus;
     _selectedStatus = _building.status;
     
-    // Initialize material controllers
     _initializeMaterialControllers();
   }
   
@@ -130,14 +138,14 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
           ? Center(child: CircularProgressIndicator())
           : LayoutBuilder(
               builder: (context, constraints) {
-                final isWideScreen = constraints.maxWidth > 800;
+                final isWideScreen = constraints.maxWidth > 600; // Mobile uchun 600px dan kichik
                 return SingleChildScrollView(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.all(isWideScreen ? 16 : 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildStatusHeader(),
-                      SizedBox(height: 20),
+                      SizedBox(height: isWideScreen ? 20 : 16),
                       
                       if (isWideScreen)
                         Row(
@@ -152,17 +160,17 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                         Column(
                           children: [
                             _buildBasicInfo(),
-                            SizedBox(height: 20),
+                            SizedBox(height: 16),
                             _buildMaterialsInfo(),
                           ],
                         ),
                       
-                      SizedBox(height: 20),
+                      SizedBox(height: isWideScreen ? 20 : 16),
                       _buildSchemeSection(),
                       
                       if (_building.images.isNotEmpty) ...[
-                        SizedBox(height: 20),
-                        _buildImagesSection(),
+                        SizedBox(height: isWideScreen ? 20 : 16),
+                        _buildImagesSection(isWideScreen),
                       ],
                     ],
                   ),
@@ -286,9 +294,20 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             _isEditing 
                 ? TextFormField(
                     controller: _uniqueNameController,
-                    decoration: InputDecoration(border: OutlineInputBorder()),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.tag, color: Colors.blue),
+                    ),
                   )
-                : Text(_building.uniqueName, style: TextStyle(fontWeight: FontWeight.w500)),
+                : Row(
+                    children: [
+                      Icon(Icons.tag, color: Colors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_building.uniqueName, style: TextStyle(fontWeight: FontWeight.w500)),
+                      ),
+                    ],
+                  ),
           ),
           
           _buildInfoRow(
@@ -296,44 +315,113 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             _isEditing 
                 ? TextFormField(
                     controller: _regionNameController,
-                    decoration: InputDecoration(border: OutlineInputBorder()),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_on, color: Colors.blue),
+                    ),
                   )
-                : Text(_building.regionName, style: TextStyle(fontWeight: FontWeight.w500)),
+                : Row(
+                    children: [
+                      Icon(Icons.location_on, color: Colors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_building.regionName, style: TextStyle(fontWeight: FontWeight.w500)),
+                      ),
+                    ],
+                  ),
           ),
           
           _buildInfoRow(
-            'Қурувчи',
+            'Қурувчилар',
             _isEditing 
-                ? _buildBuilderDropdown()
-                : Text(_building.builder ?? 'Белгиланмаган', 
-                       style: TextStyle(fontWeight: FontWeight.w500)),
+                ? _buildBuildersSection()
+                : _selectedBuilders.isEmpty
+                    ? Row(
+                        children: [
+                          Icon(Icons.construction, color: Colors.grey, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Қурувчи белгиланмаган',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade600,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.construction, color: Colors.blue, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Қурувчилар:',
+                                style: TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          ..._selectedBuilders.map((builder) => Padding(
+                            padding: EdgeInsets.only(left: 28, bottom: 4),
+                            child: Row(
+                              children: [
+                                Icon(Icons.person, color: Colors.blue, size: 16),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    builder,
+                                    style: TextStyle(fontWeight: FontWeight.w400),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )).toList(),
+                        ],
+                      ),
           ),
           
           _buildInfoRow(
             'Текширувчи шахс',
             _isEditing 
                 ? _buildInspectorDropdown()
-                : Text(_building.verificationPerson ?? 'Белгиланмаган', 
-                       style: TextStyle(fontWeight: FontWeight.w500)),
+                : Row(
+                    children: [
+                      Icon(Icons.person_search, color: Colors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_building.verificationPerson ?? 'Белгиланмаган', 
+                               style: TextStyle(fontWeight: FontWeight.w500)),
+                      ),
+                    ],
+                  ),
           ),
           
           _buildInfoRow(
             'Лойиҳа ҳолати',
             _isEditing 
                 ? _buildStatusDropdown()
-                : Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(_building.status).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _getStatusText(_building.status),
-                      style: TextStyle(
-                        color: _getStatusColor(_building.status),
-                        fontWeight: FontWeight.bold,
+                : Row(
+                    children: [
+                      Icon(_getStatusIcon(_building.status), color: _getStatusColor(_building.status), size: 20),
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(_building.status).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _getStatusText(_building.status),
+                          style: TextStyle(
+                            color: _getStatusColor(_building.status),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
           ),
           
@@ -341,16 +429,86 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             'Колодец ҳолати',
             _isEditing 
                 ? _buildKolodetsDropdown()
-                : Text(_building.kolodetsStatus ?? 'Белгиланмаган', 
-                       style: TextStyle(fontWeight: FontWeight.w500)),
+                : Row(
+                    children: [
+                      Icon(Icons.water_drop, color: Colors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_building.kolodetsStatus ?? 'Белгиланмаган', 
+                               style: TextStyle(fontWeight: FontWeight.w500)),
+                      ),
+                    ],
+                  ),
           ),
           
           _buildInfoRow(
             'Яратилган сана',
-            Text(
-              DateFormat('dd.MM.yyyy HH:mm').format(_building.createdAt),
-              style: TextStyle(fontWeight: FontWeight.w500),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, color: Colors.blue, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  DateFormat('dd.MM.yyyy HH:mm').format(_building.createdAt),
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
             ),
+          ),
+          
+          // Comment section
+          _buildInfoRow(
+            'Изоҳ',
+            _isEditing 
+                ? TextFormField(
+                    controller: _commentController,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Қўшимча маълумотлар, эслатмалар...',
+                      alignLabelWithHint: true,
+                      prefixIcon: Icon(Icons.comment, color: Colors.blue),
+                    ),
+                    maxLines: 3,
+                    minLines: 1,
+                  )
+                : (_building.comment != null && _building.comment!.isNotEmpty)
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.comment, color: Colors.blue, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Text(
+                                _building.comment!,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Icon(Icons.comment_outlined, color: Colors.grey, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Изоҳ йўқ',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade600,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
           ),
         ],
       ),
@@ -358,6 +516,12 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   }
 
   Widget _buildMaterialsInfo() {
+    // Create a map of available materials for easier lookup
+    final availableMaterialsMap = <String, Map<String, dynamic>>{};
+    for (final material in _building.availableMaterials) {
+      availableMaterialsMap[material['materialId']] = material;
+    }
+    
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -365,9 +529,8 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
             offset: Offset(0, 2),
           ),
         ],
@@ -377,39 +540,58 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.construction, color: Colors.blue),
+              Icon(Icons.inventory, color: Colors.blue),
               SizedBox(width: 8),
               Text(
-                'Қурилиш материаллари',
+                'Материаллар',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ],
           ),
           SizedBox(height: 16),
           
-          // Agar required materials bo'lsa, available materials ham bo'ladi
-          if (_building.requiredMaterials.isNotEmpty)
-            _buildMaterialComparison()
-          else
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey),
-                    SizedBox(height: 8),
-                    Text(
-                      'Материаллар маълумоти йўқ',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            decoration: BoxDecoration(
+              color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.3)),
             ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _getMaterialStatusIcon(_building.materialStatus!),
+                  color: _getMaterialStatusColor(_building.materialStatus!),
+                  size: 20,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Материал ҳолати: ${_getMaterialStatusText(_building.materialStatus!)}',
+                  style: TextStyle(
+                    color: _getMaterialStatusColor(_building.materialStatus!),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          SizedBox(height: 16),
+          
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 500;
+              
+              return isNarrow
+                  ? Column(
+                      children: [
+                        _buildMaterialComparison(),
+                      ],
+                    )
+                  : _buildMaterialComparison();
+            },
+          ),
         ],
       ),
     );
@@ -792,17 +974,16 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     );
   }
 
-  Widget _buildImagesSection() {
+  Widget _buildImagesSection(bool isWideScreen) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(isWideScreen ? 16 : 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
             offset: Offset(0, 2),
           ),
         ],
@@ -815,7 +996,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
               Icon(Icons.photo_library, color: Colors.blue),
               SizedBox(width: 8),
               Text(
-                'Лойиҳа расмлари',
+                'Расмлар',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ],
@@ -826,28 +1007,57 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: MediaQuery.of(context).size.width > 800 ? 4 : 2,
+              crossAxisCount: isWideScreen ? 4 : 2,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
             itemCount: _building.images.length,
             itemBuilder: (context, index) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  _building.images[index],
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey.shade200,
-                      child: Icon(Icons.error, color: Colors.grey),
-                    );
-                  },
+              return GestureDetector(
+                onTap: () => _showFullScreenImage(_building.images[index]),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    _building.images[index],
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: Icon(Icons.error, color: Colors.grey),
+                      );
+                    },
+                  ),
                 ),
               );
             },
           ),
         ],
+      ),
+    );
+  }
+  
+  void _showFullScreenImage(String imageUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            iconTheme: IconThemeData(color: Colors.white),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(Icons.error, color: Colors.white, size: 64);
+                },
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -874,27 +1084,6 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   }
 
   // Dropdown builders and other helper methods...
-  Widget _buildBuilderDropdown() {
-    // Агар _selectedBuilder _builders'да йўқ бўлса, null қилиш
-    if (_selectedBuilder != null && !_builders.contains(_selectedBuilder)) {
-      _selectedBuilder = null;
-    }
-    
-    return DropdownButtonFormField<String>(
-      value: _selectedBuilder,
-      decoration: InputDecoration(border: OutlineInputBorder()),
-      items: [
-        if (_isLoadingBuilders)
-          DropdownMenuItem(value: null, child: Text('Юкланмоқда...'))
-        else
-          ..._builders.map((builder) => DropdownMenuItem(
-            value: builder,
-            child: Text(builder),
-          )),
-      ],
-      onChanged: _isLoadingBuilders ? null : (val) => setState(() => _selectedBuilder = val),
-    );
-  }
 
   Widget _buildInspectorDropdown() {
     final inspectorsList = ['Алишер Каримов', 'Шахноз Иброҳимова', 'Бобур Раҳимов'];
@@ -905,59 +1094,112 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     
     return DropdownButtonFormField<String>(
       value: _selectedInspector,
-      decoration: InputDecoration(border: OutlineInputBorder()),
+      decoration: InputDecoration(
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.person_search, color: Colors.blue),
+      ),
       items: inspectorsList
-          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+          .map((inspector) => DropdownMenuItem(
+                value: inspector,
+                child: Text(inspector),
+              ))
           .toList(),
-      onChanged: (val) => setState(() => _selectedInspector = val),
+      onChanged: (value) => setState(() => _selectedInspector = value),
     );
   }
 
   Widget _buildStatusDropdown() {
-    // Agar kolodets "Йўқ" bo'lsa, faqat "Бошланмаган" ko'rsatish
-    final availableStatuses = _selectedKolodetsStatus == 'Йўқ' 
-        ? [BuildingStatus.notStarted]
-        : BuildingStatus.values;
-    
     return DropdownButtonFormField<BuildingStatus>(
       value: _selectedStatus,
-      decoration: InputDecoration(border: OutlineInputBorder()),
-      items: availableStatuses
-          .map((status) => DropdownMenuItem(
-                value: status,
-                child: Text(_getStatusText(status)),
-              ))
-          .toList(),
-      onChanged: _selectedKolodetsStatus == 'Йўқ' 
-          ? null // Disable agar kolodets "Йўқ"
-          : (val) => setState(() => _selectedStatus = val ?? BuildingStatus.notStarted),
+      decoration: InputDecoration(
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.business, color: Colors.blue),
+      ),
+      items: BuildingStatus.values.map((status) => DropdownMenuItem(
+        value: status,
+        child: Row(
+          children: [
+            Icon(_getStatusIcon(status), color: _getStatusColor(status), size: 16),
+            SizedBox(width: 8),
+            Text(_getStatusText(status)),
+          ],
+        ),
+      )).toList(),
+      onChanged: (value) => setState(() => _selectedStatus = value!),
     );
   }
 
 
 
   Widget _buildKolodetsDropdown() {
-    final kolodetsStatusList = ['Бор', 'Йўқ', 'Номаълум'];
-    
-    if (_selectedKolodetsStatus != null && !kolodetsStatusList.contains(_selectedKolodetsStatus)) {
-      _selectedKolodetsStatus = null;
-    }
-    
     return DropdownButtonFormField<String>(
       value: _selectedKolodetsStatus,
-      decoration: InputDecoration(border: OutlineInputBorder()),
-      items: kolodetsStatusList
-          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-          .toList(),
-      onChanged: (val) {
-        setState(() {
-          _selectedKolodetsStatus = val;
-          // Agar kolodets "Йўқ" bo'lsa, status "Бошланмаган" qilish
-          if (val == 'Йўқ') {
-            _selectedStatus = BuildingStatus.notStarted;
-          }
-        });
-      },
+      decoration: InputDecoration(
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.water_drop, color: Colors.blue),
+      ),
+      items: ['Бор', 'Йўқ'].map((status) => DropdownMenuItem(
+        value: status,
+        child: Text(status),
+      )).toList(),
+      onChanged: (value) => setState(() => _selectedKolodetsStatus = value),
+    );
+  }
+
+  Widget _buildBuildersSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Mavjud quruvchilar
+        ..._selectedBuilders.asMap().entries.map((entry) {
+          final index = entry.key;
+          final builder = entry.value;
+          
+          return Container(
+            margin: EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.construction, color: Colors.blue, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    builder,
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.red, size: 20),
+                  onPressed: () => _removeBuilder(index),
+                  tooltip: 'Ўчириш',
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+        
+        // Yangi quruvchi qo'shish
+        Container(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _showAddBuilderDialog,
+            icon: Icon(Icons.add, color: Colors.blue),
+            label: Text(
+              'Қурувчи қўшиш',
+              style: TextStyle(color: Colors.blue),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.blue),
+              padding: EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1001,8 +1243,9 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
         verificationPerson: _selectedInspector,
         status: _selectedStatus,
         kolodetsStatus: _selectedKolodetsStatus,
-        builder: _selectedBuilder,
+        builders: _selectedBuilders, // builder o'rniga builders
         schemeUrl: _schemeUrlController.text.isEmpty ? null : _schemeUrlController.text,
+        comment: _commentController.text.isEmpty ? null : _commentController.text, // Yangi comment field
         createdAt: _building.createdAt,
         images: _building.images,
         customData: _building.customData,
@@ -1131,5 +1374,142 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     if (hasCritical) return MaterialStatus.critical;
     if (hasShortage) return MaterialStatus.shortage;
     return MaterialStatus.complete;
+  }
+
+  @override
+  void dispose() {
+    _uniqueNameController.dispose();
+    _regionNameController.dispose();
+    _schemeUrlController.dispose();
+    _commentController.dispose(); // Yangi controller dispose
+    
+    // Dispose material controllers
+    for (final controller in _availableQuantityControllers) {
+      controller.dispose();
+    }
+    for (final controller in _availableSizeControllers) {
+      controller.dispose();
+    }
+    
+    super.dispose();
+  }
+
+  void _removeBuilder(int index) {
+    setState(() {
+      _selectedBuilders.removeAt(index);
+    });
+  }
+
+  Future<void> _showAddBuilderDialog() async {
+    String? selectedBuilder;
+    final builderController = TextEditingController();
+    bool isAddingNew = false;
+    
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Қурувчи қўшиш'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!isAddingNew) ...[
+                Text('Мавжуд қурувчини танланг:'),
+                SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedBuilder,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.construction, color: Colors.blue),
+                  ),
+                  items: _builders
+                      .where((builder) => !_selectedBuilders.contains(builder))
+                      .map((builder) => DropdownMenuItem(
+                            value: builder,
+                            child: Text(builder),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setDialogState(() => selectedBuilder = value),
+                ),
+                SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () => setDialogState(() => isAddingNew = true),
+                  icon: Icon(Icons.add),
+                  label: Text('Янги қурувчи яратиш'),
+                ),
+              ] else ...[
+                Text('Янги қурувчи номини киритинг:'),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: builderController,
+                  decoration: InputDecoration(
+                    labelText: 'Қурувчи номи',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.construction, color: Colors.blue),
+                  ),
+                  autofocus: true,
+                ),
+                SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () => setDialogState(() => isAddingNew = false),
+                  icon: Icon(Icons.arrow_back),
+                  label: Text('Орқага'),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Бекор қилиш'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (isAddingNew) {
+                  final builderName = builderController.text.trim();
+                  if (builderName.isNotEmpty) {
+                    try {
+                      await _materialService.addBuilder(builderName);
+                      setState(() {
+                        _builders.add(builderName);
+                        _selectedBuilders.add(builderName);
+                      });
+                      Navigator.pop(context);
+                      _showSuccessSnackBar('Қурувчи қўшилди');
+                    } catch (e) {
+                      _showErrorSnackBar('Хатолик: $e');
+                    }
+                  }
+                } else if (selectedBuilder != null) {
+                  setState(() {
+                    _selectedBuilders.add(selectedBuilder!);
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(isAddingNew ? 'Яратиш' : 'Қўшиш'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 }

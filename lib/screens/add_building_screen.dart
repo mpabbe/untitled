@@ -33,13 +33,14 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   final _regionNameController = TextEditingController();
   final _schemeUrlController = TextEditingController();
   final _kolodetsConditionController = TextEditingController();
+  final _commentController = TextEditingController(); // Yangi izoh controller
   final List<TextEditingController> _imageUrlControllers = [TextEditingController()];
 
   // Dropdown selections
   String? _selectedVerificationPerson;
   String? _selectedKolodetsStatus;
-  String? _selectedBuilder;
   BuildingStatus _selectedStatus = BuildingStatus.notStarted;
+  List<String> _selectedBuilders = []; // String? _selectedBuilder o'rniga List<String>
 
   // Required materials system - Always defined materials needed for construction
   final List<String?> _selectedRequiredMaterials = [null];
@@ -93,6 +94,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     _uniqueNameController.dispose();
     _regionNameController.dispose();
     _schemeUrlController.dispose();
+    _commentController.dispose(); // Yangi controller dispose
     
     for (final controller in _imageUrlControllers) {
       controller.dispose();
@@ -368,15 +370,18 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         latitude: widget.latitude,
         longitude: widget.longitude,
         uniqueName: _serialNumberController.text.trim(),
-        regionName: _regionNameController.text.trim(),
+        regionName: _locationNameController.text.trim(), // locationName ni regionName sifatida ishlatish
         verificationPerson: _selectedVerificationPerson,
         kolodetsStatus: _selectedKolodetsStatus,
-        builder: _selectedBuilder,
+        builders: _selectedBuilders.isNotEmpty ? _selectedBuilders : null, // builder o'rniga builders
         schemeUrl: _schemeUrlController.text.trim().isEmpty
             ? null
             : _schemeUrlController.text.trim(),
+        comment: _commentController.text.trim().isEmpty
+            ? null
+            : _commentController.text.trim(),
         images: imageUrls,
-        customData: [],
+        customData: {},
         requiredMaterials: requiredMaterialsData,
         availableMaterials: availableMaterialsData,
         materialStatus: materialStatus,
@@ -476,6 +481,23 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
             ),
             SizedBox(height: 16),
 
+            // Region Name
+            TextFormField(
+              controller: _regionNameController,
+              decoration: InputDecoration(
+                labelText: 'Ҳудуд номи *',
+                prefixIcon: Icon(Icons.map),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Ҳудуд номини киритинг';
+                }
+                return null;
+              },
+            ),
+            SizedBox(height: 16),
+
             // Verification person dropdown
             DropdownButtonFormField<String>(
               value: _selectedVerificationPerson,
@@ -555,50 +577,8 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
             if (_selectedKolodetsStatus == 'Бор')
               SizedBox(height: 16),
 
-            // Builder dropdown
-            DropdownButtonFormField<String>(
-              value: _selectedBuilder,
-              decoration: InputDecoration(
-                labelText: 'Қурувчи *',
-                prefixIcon: Icon(Icons.construction),
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                if (_isLoadingBuilders)
-                  DropdownMenuItem(value: null, child: Text('Юкланмоқда...'))
-                else ...[
-                  ..._builders.map((builder) => DropdownMenuItem(
-                    value: builder,
-                    child: Text(builder),
-                  )),
-                  DropdownMenuItem(
-                    value: 'add_new',
-                    child: Row(
-                      children: [
-                        Icon(Icons.add, size: 16, color: Colors.blue),
-                        SizedBox(width: 8),
-                        Text('Янги қурувчи қўшиш', style: TextStyle(color: Colors.blue)),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-              onChanged: _isLoadingBuilders ? null : (value) {
-                if (value == 'add_new') {
-                  _showAddBuilderDialog();
-                } else {
-                  setState(() {
-                    _selectedBuilder = value;
-                  });
-                }
-              },
-              validator: (value) {
-                if (value == null) {
-                  return 'Қурувчини танланг';
-                }
-                return null;
-              },
-            ),
+            // Builders section - bir nechta quruvchi
+            _buildBuildersSection(),
             SizedBox(height: 16),
 
             // Scheme URL
@@ -609,6 +589,22 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 prefixIcon: Icon(Icons.link),
                 border: OutlineInputBorder(),
               ),
+            ),
+            SizedBox(height: 16),
+
+            // Comment field
+            TextFormField(
+              controller: _commentController,
+              decoration: InputDecoration(
+                labelText: 'Изоҳ',
+                hintText: 'Қўшимча маълумотлар, эслатмалар...',
+                prefixIcon: Icon(Icons.comment),
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 3,
+              minLines: 1,
+              textInputAction: TextInputAction.newline,
             ),
           ],
         ),
@@ -1148,21 +1144,136 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     }
   }
 
-  void _showAddBuilderDialog() {
-    final TextEditingController builderController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Янги қурувчи қўшиш'),
-          content: TextFormField(
-            controller: builderController,
-            decoration: InputDecoration(
-              labelText: 'Қурувчи номи',
-              border: OutlineInputBorder(),
+  Widget _buildBuildersSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Қурувчилар',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey[700],
+          ),
+        ),
+        SizedBox(height: 8),
+        
+        // Mavjud quruvchilar
+        ..._selectedBuilders.asMap().entries.map((entry) {
+          final index = entry.key;
+          final builder = entry.value;
+          
+          return Container(
+            margin: EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
             ),
-            autofocus: true,
+            child: Row(
+              children: [
+                Icon(Icons.construction, color: Colors.blue, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    builder,
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.red, size: 20),
+                  onPressed: () => _removeBuilder(index),
+                  tooltip: 'Ўчириш',
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+        
+        // Yangi quruvchi qo'shish
+        Container(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _showAddBuilderDialog,
+            icon: Icon(Icons.add, color: Colors.blue),
+            label: Text(
+              'Қурувчи қўшиш',
+              style: TextStyle(color: Colors.blue),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.blue),
+              padding: EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _removeBuilder(int index) {
+    setState(() {
+      _selectedBuilders.removeAt(index);
+    });
+  }
+
+  Future<void> _showAddBuilderDialog() async {
+    String? selectedBuilder;
+    final builderController = TextEditingController();
+    bool isAddingNew = false;
+    
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Қурувчи қўшиш'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!isAddingNew) ...[
+                Text('Мавжуд қурувчини танланг:'),
+                SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedBuilder,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.construction, color: Colors.blue),
+                  ),
+                  items: _builders
+                      .where((builder) => !_selectedBuilders.contains(builder))
+                      .map((builder) => DropdownMenuItem(
+                            value: builder,
+                            child: Text(builder),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setDialogState(() => selectedBuilder = value),
+                ),
+                SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () => setDialogState(() => isAddingNew = true),
+                  icon: Icon(Icons.add),
+                  label: Text('Янги қурувчи яратиш'),
+                ),
+              ] else ...[
+                Text('Янги қурувчи номини киритинг:'),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: builderController,
+                  decoration: InputDecoration(
+                    labelText: 'Қурувчи номи',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.construction, color: Colors.blue),
+                  ),
+                  autofocus: true,
+                ),
+                SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () => setDialogState(() => isAddingNew = false),
+                  icon: Icon(Icons.arrow_back),
+                  label: Text('Орқага'),
+                ),
+              ],
+            ],
           ),
           actions: [
             TextButton(
@@ -1171,26 +1282,33 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final builderName = builderController.text.trim();
-                if (builderName.isNotEmpty) {
-                  try {
-                    await _materialService.addBuilder(builderName);
-                    setState(() {
-                      _builders.add(builderName);
-                      _selectedBuilder = builderName;
-                    });
-                    Navigator.pop(context);
-                    _showSuccessSnackBar('Қурувчи қўшилди');
-                  } catch (e) {
-                    _showErrorSnackBar('Хатолик: $e');
+                if (isAddingNew) {
+                  final builderName = builderController.text.trim();
+                  if (builderName.isNotEmpty) {
+                    try {
+                      await _materialService.addBuilder(builderName);
+                      setState(() {
+                        _builders.add(builderName);
+                        _selectedBuilders.add(builderName);
+                      });
+                      Navigator.pop(context);
+                      _showSuccessSnackBar('Қурувчи қўшилди');
+                    } catch (e) {
+                      _showErrorSnackBar('Хатолик: $e');
+                    }
                   }
+                } else if (selectedBuilder != null) {
+                  setState(() {
+                    _selectedBuilders.add(selectedBuilder!);
+                  });
+                  Navigator.pop(context);
                 }
               },
-              child: Text('Қўшиш'),
+              child: Text(isAddingNew ? 'Яратиш' : 'Қўшиш'),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }

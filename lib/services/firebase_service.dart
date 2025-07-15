@@ -15,7 +15,7 @@ class FirebaseService {
       await _firestore
           .collection(_buildingsCollection)
           .doc(building.id)
-          .set(building.toMap());
+          .set(building.toJson());
     } catch (e) {
       throw Exception('Failed to save building: $e');
     }

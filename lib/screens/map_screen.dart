@@ -138,6 +138,10 @@ class _MapScreenState extends State<MapScreen> {
         // Verification person bo'yicha qidirish
         final verificationPersonMatch = 
             (b.verificationPerson?.toLowerCase().contains(query) ?? false);
+            
+        // Builders bo'yicha qidirish
+        final buildersMatch = b.builders?.any((builder) => 
+            builder.toLowerCase().contains(query)) ?? false;
         
         // Agar query'da bo'sh joy bo'lsa - bir nechta so'z bo'yicha qidirish
         if (query.contains(' ')) {
@@ -145,32 +149,36 @@ class _MapScreenState extends State<MapScreen> {
           final allWordsMatch = words.every((word) =>
             b.uniqueName.toLowerCase().contains(word) ||
             b.regionName.toLowerCase().contains(word) ||
-            (b.verificationPerson?.toLowerCase().contains(word) ?? false)
+            (b.verificationPerson?.toLowerCase().contains(word) ?? false) ||
+            (b.builders?.any((builder) => builder.toLowerCase().contains(word)) ?? false)
           );
           return allWordsMatch;
         }
         
-        return uniqueNameMatch || regionNameMatch || verificationPersonMatch;
+        return uniqueNameMatch || regionNameMatch || verificationPersonMatch || buildersMatch;
       }).toList();
       
       _showSearchResults = query.isNotEmpty && _searchFocusNode.hasFocus;
     });
   }
 
-  void _onBuildingTap(Building building) {
-    _mapController.move(LatLng(building.latitude, building.longitude), 17);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => BuildingDetailScreen(building: building)),
-    );
-    // Yangi joyga fokusni olib tashlash
-    _searchFocusNode.unfocus();
-    _searchController.clear();
-    setState(() {
-      _showSearchResults = false;
-      _searchResults.clear();
-    });
-  }
+void _onBuildingTap(Building building) {
+  // Focus ni tozalash
+  FocusScope.of(context).unfocus();
+
+  _mapController.move(LatLng(building.latitude, building.longitude), 17);
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => BuildingDetailScreen(building: building)),
+  );
+
+  _searchController.clear();
+  setState(() {
+    _showSearchResults = false;
+    _searchResults.clear();
+  });
+}
+
 
   void _resetMapOrientation() {
     _mapController.rotate(0);
@@ -222,7 +230,7 @@ class _MapScreenState extends State<MapScreen> {
                   ],
                 ),
                 child: Text(
-                  building.uniqueName, // uniqueName o'rniga id ko'rsatish
+                  building.uniqueName,
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -298,6 +306,8 @@ class _MapScreenState extends State<MapScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Тасдиқловчи: ${building.verificationPerson ?? "йўқ"}'),
+              if (building.builders != null && building.builders!.isNotEmpty)
+                Text('Қурувчилар: ${building.builders!.join(", ")}'),
               if (building.availableMaterials.isNotEmpty)
                 Text(
                   'Материаллар: ${building.availableMaterials.length} та',
@@ -369,7 +379,57 @@ class _MapScreenState extends State<MapScreen> {
                       options: MarkerClusterLayerOptions(
                         maxClusterRadius: 60,
                         size: Size(40, 40),
-                        markers: _buildMarkers(),
+                        markers: _buildings.map((building) => Marker(
+                          point: LatLng(building.latitude, building.longitude),
+                          width: 180,
+                          height: 60,
+                          child: GestureDetector(
+                            onTap: () => _onBuildingTap(building),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: _getStatusColor(building.status), width: 2),
+                                    color: Colors.white,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 3,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: _buildStatusIcon(building.status),
+                                ),
+                                SizedBox(width: 6),
+                                Flexible(
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.9),
+                                      borderRadius: BorderRadius.circular(6),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 3,
+                                          offset: Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      building.uniqueName,
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )).toList(),
                         builder: (context, markers) => Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -492,8 +552,8 @@ class _MapScreenState extends State<MapScreen> {
                                       final building = _searchResults[index];
                                       return Material(
                                         color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: () => _onBuildingTap(building),
+                                        child: GestureDetector(
+                                          onTapUp: (_) => _onBuildingTap(building),
                                           child: Padding(
                                             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                             child: Row(
@@ -542,25 +602,48 @@ class _MapScreenState extends State<MapScreen> {
                                                             fontSize: 11,
                                                           ),
                                                         ),
+                                                      if (building.builders != null && building.builders!.isNotEmpty)
+                                                        Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            SizedBox(height: 2),
+                                                            Row(
+                                                              children: [
+                                                                Icon(Icons.construction, size: 11, color: Colors.blue.shade600),
+                                                                SizedBox(width: 4),
+                                                                Expanded(
+                                                                  child: Text(
+                                                                    building.builders!.join(', '),
+                                                                    style: TextStyle(
+                                                                      color: Colors.blue.shade600,
+                                                                      fontSize: 11,
+                                                                    ),
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      if (building.availableMaterials.isNotEmpty)
+                                                        Container(
+                                                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.green.shade50,
+                                                            borderRadius: BorderRadius.circular(12),
+                                                          ),
+                                                          child: Text(
+                                                            '${building.availableMaterials.length}',
+                                                            style: TextStyle(
+                                                              color: Colors.green.shade700,
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.w600,
+                                                            ),
+                                                          ),
+                                                        ),
                                                     ],
                                                   ),
                                                 ),
-                                                if (building.availableMaterials.isNotEmpty)
-                                                  Container(
-                                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.green.shade50,
-                                                      borderRadius: BorderRadius.circular(12),
-                                                    ),
-                                                    child: Text(
-                                                      '${building.availableMaterials.length}',
-                                                      style: TextStyle(
-                                                        color: Colors.green.shade700,
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                  ),
                                               ],
                                             ),
                                           ),

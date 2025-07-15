@@ -25,14 +25,15 @@ class Building {
   final String? verificationPerson;
   final BuildingStatus status;
   final String? kolodetsStatus;
-  final String? builder;
+  final List<String>? builders; // String? builder o'rniga List<String>? builders
   final String? schemeUrl;
+  final String? comment;
   final DateTime createdAt;
   final List<String> images;
-  final List<Map<String, String>> customData; // Keep for backward compatibility
+  final Map<String, dynamic>? customData;
+  final MaterialStatus? materialStatus;
   final List<Map<String, dynamic>> availableMaterials;
   final List<Map<String, dynamic>> requiredMaterials;
-  final MaterialStatus materialStatus;
 
   Building({
     required this.id,
@@ -43,17 +44,52 @@ class Building {
     this.verificationPerson,
     required this.status,
     this.kolodetsStatus,
-    this.builder,
+    this.builders, // builder o'rniga builders
     this.schemeUrl,
+    this.comment,
     required this.createdAt,
-    required this.images,
-    required this.customData,
-    required this.availableMaterials,
-    required this.requiredMaterials,
-    required this.materialStatus,
+    this.images = const [],
+    this.customData,
+    this.materialStatus,
+    this.availableMaterials = const [],
+    this.requiredMaterials = const [],
   });
 
-  Map<String, dynamic> toMap() {
+  factory Building.fromJson(Map<String, dynamic> json) {
+    return Building(
+      id: json['id'] ?? '',
+      latitude: (json['latitude'] ?? 0.0).toDouble(),
+      longitude: (json['longitude'] ?? 0.0).toDouble(),
+      uniqueName: json['uniqueName'] ?? '',
+      regionName: json['regionName'] ?? '',
+      verificationPerson: json['verificationPerson'],
+      status: BuildingStatus.values.firstWhere(
+        (e) => e.toString() == 'BuildingStatus.${json['status']}',
+        orElse: () => BuildingStatus.notStarted,
+      ),
+      kolodetsStatus: json['kolodetsStatus'],
+      builders: json['builders'] != null ? List<String>.from(json['builders']) : null,
+      schemeUrl: json['schemeUrl'],
+      comment: json['comment'],
+      createdAt: DateTime.parse(json['createdAt']),
+      images: json['images'] != null ? List<String>.from(json['images']) : [],
+      customData: json['customData'] is Map ? Map<String, dynamic>.from(json['customData']) : null,
+      materialStatus: json['materialStatus'] != null
+          ? MaterialStatus.values.firstWhere(
+              (e) => e.toString() == 'MaterialStatus.${json['materialStatus']}',
+              orElse: () => MaterialStatus.shortage,
+            )
+          : null,
+      availableMaterials: json['availableMaterials'] != null
+          ? List<Map<String, dynamic>>.from(json['availableMaterials'])
+          : [],
+      requiredMaterials: json['requiredMaterials'] != null
+          ? List<Map<String, dynamic>>.from(json['requiredMaterials'])
+          : [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
       'latitude': latitude,
@@ -61,49 +97,23 @@ class Building {
       'uniqueName': uniqueName,
       'regionName': regionName,
       'verificationPerson': verificationPerson,
-      'status': status.index,
+      'status': status.toString().split('.').last,
       'kolodetsStatus': kolodetsStatus,
-      'builder': builder,
+      'builders': builders, // builder o'rniga builders
       'schemeUrl': schemeUrl,
+      'comment': comment,
       'createdAt': createdAt.toIso8601String(),
       'images': images,
       'customData': customData,
+      'materialStatus': materialStatus?.toString().split('.').last,
       'availableMaterials': availableMaterials,
       'requiredMaterials': requiredMaterials,
-      'materialStatus': materialStatus.index,
     };
-  }
-
-  factory Building.fromMap(Map<String, dynamic> map) {
-    return Building(
-      id: map['id'] ?? '',
-      latitude: (map['latitude'] ?? 0.0).toDouble(),
-      longitude: (map['longitude'] ?? 0.0).toDouble(),
-      uniqueName: map['uniqueName'] ?? '',
-      regionName: map['regionName'] ?? '',
-      verificationPerson: map['verificationPerson'],
-      status: BuildingStatus.values[map['status'] ?? 0],
-      kolodetsStatus: map['kolodetsStatus'],
-      builder: map['builder'],
-      schemeUrl: map['schemeUrl'],
-      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
-      images: List<String>.from(map['images'] ?? []),
-      customData: List<Map<String, String>>.from(
-        (map['customData'] ?? []).map((item) => Map<String, String>.from(item)),
-      ),
-      availableMaterials: List<Map<String, dynamic>>.from(
-        (map['availableMaterials'] ?? []).map((item) => Map<String, dynamic>.from(item)),
-      ),
-      requiredMaterials: List<Map<String, dynamic>>.from(
-        (map['requiredMaterials'] ?? []).map((item) => Map<String, dynamic>.from(item)),
-      ),
-      materialStatus: MaterialStatus.values[map['materialStatus'] ?? 0],
-    );
   }
 
   factory Building.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    return Building.fromMap({...data, 'id': doc.id});
+    return Building.fromJson({...data, 'id': doc.id});
   }
 
   @override
