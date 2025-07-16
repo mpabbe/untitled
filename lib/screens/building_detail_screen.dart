@@ -18,11 +18,15 @@ class BuildingDetailScreen extends StatefulWidget {
 class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   late Building _building;
   
+  // Form key qo'shish
+  final _formKey = GlobalKey<FormState>();
+  
   // Controllers
   late TextEditingController _uniqueNameController;
   late TextEditingController _regionNameController;
   late TextEditingController _schemeUrlController;
   late TextEditingController _commentController;
+  late TextEditingController _verificationPersonController; // Yangi controller
   
   // Selected values
   List<String> _selectedBuilders = []; // String? dan List<String> ga o'zgartirdik
@@ -39,9 +43,11 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   bool _isSaving = false;
   bool _isLoadingMaterials = true;
   bool _isLoadingBuilders = true;
+  bool _isLoadingVerifiers = true;
 
   // Data from Firebase
   List<String> _builders = [];
+  List<String> _verifiers = [];
   final MaterialService _materialService = MaterialService();
   
   // Static data
@@ -52,7 +58,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     super.initState();
     _building = widget.building;
     _initializeControllers();
-    _loadBuilders();
+    _loadInitialData();
   }
   
   void _initializeControllers() {
@@ -60,6 +66,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     _regionNameController = TextEditingController(text: _building.regionName);
     _schemeUrlController = TextEditingController(text: _building.schemeUrl ?? '');
     _commentController = TextEditingController(text: _building.comment ?? '');
+    _verificationPersonController = TextEditingController(text: _building.verificationPerson ?? '');
     
     // Initialize selected values
     _selectedBuilders = _building.builders?.toList() ?? []; // builders list dan olish
@@ -93,15 +100,31 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     }
   }
   
-  Future<void> _loadBuilders() async {
-    setState(() => _isLoadingBuilders = true);
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoadingBuilders = true;
+      _isLoadingVerifiers = true;
+    });
+
     try {
-      _builders = await _materialService.getBuilders();
-      setState(() => _isLoadingBuilders = false);
+      final results = await Future.wait([
+        _materialService.getBuilders(),
+        _materialService.getVerifiers(),
+      ]);
+
+      setState(() {
+        _builders = results[0] as List<String>;
+        _verifiers = results[1] as List<String>;
+        _isLoadingBuilders = false;
+        _isLoadingVerifiers = false;
+      });
     } catch (e) {
-      setState(() => _isLoadingBuilders = false);
+      setState(() {
+        _isLoadingBuilders = false;
+        _isLoadingVerifiers = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Қурувчиларни юклашда хатолик: $e')),
+        SnackBar(content: Text('Маълумотларни юклашда хатолик: $e')),
       );
     }
   }
@@ -132,51 +155,47 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
               onPressed: _isSaving ? null : _saveChanges,
             ),
           ],
+          // O'chirish tugmasi
+          IconButton(
+            icon: Icon(Icons.delete, color: Colors.red),
+            onPressed: _showDeleteConfirmation,
+          ),
         ],
       ),
-      body: _isSaving
-          ? Center(child: CircularProgressIndicator())
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final isWideScreen = constraints.maxWidth > 600; // Mobile uchun 600px dan kichik
-                return SingleChildScrollView(
-                  padding: EdgeInsets.all(isWideScreen ? 16 : 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildStatusHeader(),
-                      SizedBox(height: isWideScreen ? 20 : 16),
-                      
-                      if (isWideScreen)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 2, child: _buildBasicInfo()),
-                            SizedBox(width: 20),
-                            Expanded(flex: 3, child: _buildMaterialsInfo()),
-                          ],
-                        )
-                      else
-                        Column(
-                          children: [
-                            _buildBasicInfo(),
-                            SizedBox(height: 16),
-                            _buildMaterialsInfo(),
-                          ],
-                        ),
-                      
-                      SizedBox(height: isWideScreen ? 20 : 16),
-                      _buildSchemeSection(),
-                      
-                      if (_building.images.isNotEmpty) ...[
-                        SizedBox(height: isWideScreen ? 20 : 16),
-                        _buildImagesSection(isWideScreen),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            ),
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildStatusHeader(),
+              SizedBox(height: 20),
+              
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 2, child: _buildBasicInfo()),
+                  SizedBox(width: 20),
+                  Expanded(flex: 3, child: _buildMaterialsInfo()),
+                ],
+              ),
+              
+              SizedBox(height: 20),
+              _buildSchemeSection(),
+              
+              if (_building.images.isNotEmpty) ...[
+                SizedBox(height: 20),
+                _buildImagesSection(true),
+              ],
+              
+              // Loyihani tugatish switch'i
+              SizedBox(height: 24),
+              _buildProjectCompletionSwitch(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -598,25 +617,26 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   }
 
   Widget _buildMaterialComparison() {
-    // Create map for available materials
-    final availableMaterialsMap = <String, Map<String, dynamic>>{};
-    for (final material in _building.availableMaterials) {
-      availableMaterialsMap[material['materialId']] = material;
+    if (_building.requiredMaterials.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Материаллар мавжуд эмас'),
+        ),
+      );
     }
     
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Material status indicator
         Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(12),
           margin: EdgeInsets.only(bottom: 16),
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           decoration: BoxDecoration(
             color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.3),
-            ),
+            border: Border.all(color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.3)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -638,141 +658,18 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
           ),
         ),
         
-        Row(
-          children: [
-            // Required materials
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Керакли материаллар',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    ..._building.requiredMaterials.map((material) => 
-                      Padding(
-                        padding: EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '• ${material['materialName']} - ${material['quantity']} ${material['unit']}${material['size'] != null && material['size'].toString().isNotEmpty ? ' (${material['size']})' : ''}',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ).toList(),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(width: 12),
-            
-            // Available materials
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Мавжуд материаллар',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    // Show materials based on required materials
-                    ..._building.requiredMaterials.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final requiredMaterial = entry.value;
-                      final materialId = requiredMaterial['materialId'];
-                      final availableMaterial = availableMaterialsMap[materialId];
-                      
-                      return _isEditing 
-                        ? _buildEditableMaterialRow(index, requiredMaterial, availableMaterial)
-                        : Padding(
-                            padding: EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              '• ${requiredMaterial['materialName']} - ${availableMaterial?['quantity'] ?? '0'} ${requiredMaterial['unit']}${availableMaterial?['size'] != null && availableMaterial!['size'].toString().isNotEmpty ? ' (${availableMaterial['size']})' : ''}',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          );
-                    }).toList(),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+        // Excel kabi jadval
+        if (_isEditing) 
+          _buildExcelStyleMaterialTable()
+        else
+          _buildReadOnlyMaterialTable(),
       ],
     );
   }
 
   Widget _buildEditableMaterialRow(int index, Map<String, dynamic> requiredMaterial, Map<String, dynamic>? availableMaterial) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              requiredMaterial['materialName'] ?? '',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            ),
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            child: TextFormField(
-              controller: index < _availableQuantityControllers.length 
-                ? _availableQuantityControllers[index] 
-                : TextEditingController(text: availableMaterial?['quantity']?.toString() ?? '0'),
-              decoration: InputDecoration(
-                hintText: '0',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                isDense: true,
-              ),
-              style: TextStyle(fontSize: 11),
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-            ),
-          ),
-          SizedBox(width: 4),
-          Text(
-            requiredMaterial['unit'] ?? '',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            child: TextFormField(
-              controller: index < _availableSizeControllers.length 
-                ? _availableSizeControllers[index] 
-                : TextEditingController(text: availableMaterial?['size']?.toString() ?? ''),
-              decoration: InputDecoration(
-                hintText: 'Ўлчам',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                isDense: true,
-              ),
-              style: TextStyle(fontSize: 11),
-            ),
-          ),
-        ],
-      ),
-    );
+    // O'chirildi - _buildExcelStyleMaterialRow bilan almashtirildi
+    return Container();
   }
 
   Widget _buildSchemeSection() {
@@ -1086,10 +983,8 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   // Dropdown builders and other helper methods...
 
   Widget _buildInspectorDropdown() {
-    final inspectorsList = ['Алишер Каримов', 'Шахноз Иброҳимова', 'Бобур Раҳимов'];
-    
-    if (_selectedInspector != null && !inspectorsList.contains(_selectedInspector)) {
-      _selectedInspector = null;
+    if (_isLoadingVerifiers) {
+      return Center(child: CircularProgressIndicator());
     }
     
     return DropdownButtonFormField<String>(
@@ -1098,13 +993,29 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.person_search, color: Colors.blue),
       ),
-      items: inspectorsList
-          .map((inspector) => DropdownMenuItem(
-                value: inspector,
-                child: Text(inspector),
-              ))
-          .toList(),
-      onChanged: (value) => setState(() => _selectedInspector = value),
+      items: [
+        ..._verifiers.map((verifier) => DropdownMenuItem(
+          value: verifier,
+          child: Text(verifier),
+        )),
+        DropdownMenuItem(
+          value: 'add_new',
+          child: Row(
+            children: [
+              Icon(Icons.add, size: 16, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Янги тасдиқловчи қўшиш', style: TextStyle(color: Colors.blue)),
+            ],
+          ),
+        ),
+      ],
+      onChanged: (value) {
+        if (value == 'add_new') {
+          _showAddVerifierDialog();
+        } else {
+          setState(() => _selectedInspector = value);
+        }
+      },
     );
   }
 
@@ -1204,9 +1115,12 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   }
 
   Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) return;
+    
     setState(() => _isSaving = true);
+    
     try {
-      // Update available materials based on required materials
+      // Available materials ni yangilash
       final updatedAvailableMaterials = <Map<String, dynamic>>[];
       
       for (int i = 0; i < _building.requiredMaterials.length; i++) {
@@ -1216,23 +1130,26 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
           : '0';
         final updatedSize = i < _availableSizeControllers.length 
           ? _availableSizeControllers[i].text.trim() 
-          : '';
+          : (requiredMaterial['size'] ?? '');
         
         updatedAvailableMaterials.add({
           'materialId': requiredMaterial['materialId'],
           'materialName': requiredMaterial['materialName'],
           'quantity': updatedQuantity.isNotEmpty ? updatedQuantity : '0',
           'unit': requiredMaterial['unit'],
-          'size': updatedSize,
+          'size': updatedSize.isNotEmpty ? updatedSize : requiredMaterial['size'],
           'addedAt': DateTime.now().toIso8601String(),
         });
       }
       
-      // Calculate new material status
+      // Material statusni qayta hisoblash
       final newMaterialStatus = _calculateMaterialStatus(
         _building.requiredMaterials,
         updatedAvailableMaterials,
       );
+      
+      print('New material status: $newMaterialStatus'); // Debug
+      print('Updated available materials: $updatedAvailableMaterials'); // Debug
       
       final updatedBuilding = Building(
         id: _building.id,
@@ -1243,17 +1160,18 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
         verificationPerson: _selectedInspector,
         status: _selectedStatus,
         kolodetsStatus: _selectedKolodetsStatus,
-        builders: _selectedBuilders, // builder o'rniga builders
+        builders: _selectedBuilders,
         schemeUrl: _schemeUrlController.text.isEmpty ? null : _schemeUrlController.text,
-        comment: _commentController.text.isEmpty ? null : _commentController.text, // Yangi comment field
+        comment: _commentController.text.isEmpty ? null : _commentController.text,
         createdAt: _building.createdAt,
         images: _building.images,
         customData: _building.customData,
-        materialStatus: newMaterialStatus,
+        materialStatus: newMaterialStatus, // Yangi status
         availableMaterials: updatedAvailableMaterials,
         requiredMaterials: _building.requiredMaterials,
       );
 
+      // Firebase ga saqlash
       await FirebaseService.saveBuilding(updatedBuilding);
       
       setState(() {
@@ -1263,12 +1181,19 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ўзгартиришлар сақланди')),
+        SnackBar(
+          content: Text('Ўзгартиришлар сақланди'),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
+      print('Error saving changes: $e'); // Debug
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Хатолик: $e')),
+        SnackBar(
+          content: Text('Хатолик: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -1334,46 +1259,52 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     final requiredMap = <String, double>{};
     final availableMap = <String, double>{};
 
-    // Group required materials by ID + size
+    // Required materials ni group qilish (materialId + size bo'yicha)
     for (final material in requiredMaterials) {
       final materialId = material['materialId'] as String;
       final size = material['size']?.toString() ?? '';
-      final key = '$materialId|$size'; // Combine ID and size
+      final key = '$materialId|$size';
       final quantity = double.tryParse(material['quantity'].toString()) ?? 0;
       requiredMap[key] = (requiredMap[key] ?? 0) + quantity;
     }
 
-    // Group available materials by ID + size
+    // Available materials ni group qilish
     for (final material in availableMaterials) {
       final materialId = material['materialId'] as String;
       final size = material['size']?.toString() ?? '';
-      final key = '$materialId|$size'; // Combine ID and size
+      final key = '$materialId|$size';
       final quantity = double.tryParse(material['quantity'].toString()) ?? 0;
       availableMap[key] = (availableMap[key] ?? 0) + quantity;
     }
 
+    print('Required map: $requiredMap'); // Debug
+    print('Available map: $availableMap'); // Debug
+
     bool hasShortage = false;
     bool hasCritical = false;
 
-    // Check each required material against available
+    // Har bir required material uchun tekshirish
     for (final entry in requiredMap.entries) {
       final key = entry.key;
       final requiredQty = entry.value;
       final availableQty = availableMap[key] ?? 0;
 
-      // Agar kerakli > mavjud bo'lsa - kamchillik
+      print('Checking $key: required=$requiredQty, available=$availableQty'); // Debug
+
       if (requiredQty > availableQty) {
         hasShortage = true;
-        // Agar mavjud keraklining 50% dan ham kam bo'lsa - kritik
         if (availableQty < requiredQty * 0.5) {
           hasCritical = true;
         }
       }
     }
 
-    if (hasCritical) return MaterialStatus.critical;
-    if (hasShortage) return MaterialStatus.shortage;
-    return MaterialStatus.complete;
+    final result = hasCritical ? MaterialStatus.critical : 
+                   hasShortage ? MaterialStatus.shortage : 
+                   MaterialStatus.complete;
+    
+    print('Final material status: $result'); // Debug
+    return result;
   }
 
   @override
@@ -1381,7 +1312,8 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     _uniqueNameController.dispose();
     _regionNameController.dispose();
     _schemeUrlController.dispose();
-    _commentController.dispose(); // Yangi controller dispose
+    _commentController.dispose();
+    _verificationPersonController.dispose(); // Yangi controller dispose
     
     // Dispose material controllers
     for (final controller in _availableQuantityControllers) {
@@ -1496,19 +1428,764 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   }
 
   void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
+  }
+
+  void _showAddVerifierDialog() {
+    final controller = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.verified_user, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Янги тасдиқловчи'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  labelText: 'Тасдиқловчи номи',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+                enabled: !isLoading,
+              ),
+              if (isLoading) ...[
+                SizedBox(height: 16),
+                CircularProgressIndicator(),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: Text('Бекор қилиш'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading ? null : () async {
+                final verifierName = controller.text.trim();
+                if (verifierName.isEmpty) return;
+
+                setDialogState(() => isLoading = true);
+
+                try {
+                  final exists = await _materialService.verifierExists(verifierName);
+                  if (exists) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Бу тасдиқловчи аллақачон мавжуд')),
+                    );
+                    setDialogState(() => isLoading = false);
+                    return;
+                  }
+
+                  await _materialService.addVerifier(verifierName);
+                  final verifiers = await _materialService.getVerifiers(forceRefresh: true);
+
+                  setState(() {
+                    _verifiers = verifiers;
+                    _selectedInspector = verifierName;
+                  });
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Тасдиқловчи қўшилди: $verifierName')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Хатолик: $e')),
+                  );
+                  setDialogState(() => isLoading = false);
+                }
+              },
+              child: Text('Қўшиш'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+  Widget _buildProjectCompletionSwitch() {
+    final isCompleted = _building.status == BuildingStatus.completed && 
+                       _building.materialStatus == MaterialStatus.complete;
+    
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: isCompleted 
+                ? [Colors.green.shade50, Colors.green.shade100]
+                : [Colors.orange.shade50, Colors.orange.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isCompleted ? Colors.green : Colors.orange,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isCompleted ? Icons.check_circle : Icons.settings,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Лойиҳани тугатиш',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isCompleted ? Colors.green.shade800 : Colors.orange.shade800,
+                        ),
+                      ),
+                      Text(
+                        isCompleted 
+                            ? 'Лойиҳа тўлиқ тугалланган'
+                            : 'Барча жараёнларни тугатиш',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: isCompleted,
+                  onChanged: _isEditing ? null : _handleProjectCompletion,
+                  activeColor: Colors.green,
+                  inactiveThumbColor: Colors.grey,
+                ),
+              ],
+            ),
+            
+            if (!isCompleted) ...[
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Тугатиш учун қуйидагилар бажарилади:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange.shade800,
+                        fontSize: 13,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    _buildCompletionItem(
+                      '✓ Қурилиш ҳолати: Тугалланган',
+                      _building.status == BuildingStatus.completed,
+                    ),
+                    _buildCompletionItem(
+                      '✓ Материал ҳолати: Етарли',
+                      _building.materialStatus == MaterialStatus.complete,
+                    ),
+                    _buildCompletionItem(
+                      '✓ Тасдиқловчи: Белгиланган',
+                      _building.verificationPerson?.isNotEmpty == true,
+                    ),
+                    _buildCompletionItem(
+                      '✓ Қурувчи: Белгиланган',
+                      _building.builders?.isNotEmpty == true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompletionItem(String text, bool isCompleted) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 16,
+            color: isCompleted ? Colors.green : Colors.grey,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: isCompleted ? Colors.green.shade700 : Colors.grey.shade600,
+                decoration: isCompleted ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleProjectCompletion(bool value) async {
+    if (!value) return; // Faqat true holatida ishlaydi
+    
+    // Confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Тасдиқлаш'),
+          ],
+        ),
+        content: Text(
+          'Лойиҳани тугатишни хоҳлайсизми?\n\n'
+          'Бу амал қуйидагиларни ўзгартиради:\n'
+          '• Қурилиш ҳолати: Тугалланган\n'
+          '• Материал ҳолати: Етарли\n'
+          '• Барча материаллар автоматик тўлдирилади',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Бекор қилиш'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: Text('Тугатиш', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    setState(() => _isSaving = true);
+    
+    try {
+      // Barcha available materiallarni required bilan tenglash
+      final updatedAvailableMaterials = <Map<String, dynamic>>[];
+      
+      for (final required in _building.requiredMaterials) {
+        updatedAvailableMaterials.add({
+          'materialId': required['materialId'],
+          'materialName': required['materialName'],
+          'quantity': required['quantity'], // Required bilan bir xil
+          'unit': required['unit'],
+          'size': required['size'],
+          'addedAt': DateTime.now().toIso8601String(),
+        });
+      }
+      
+      final updatedBuilding = Building(
+        id: _building.id,
+        latitude: _building.latitude,
+        longitude: _building.longitude,
+        uniqueName: _building.uniqueName,
+        regionName: _building.regionName,
+        verificationPerson: _building.verificationPerson,
+        status: BuildingStatus.completed, // Tugallangan
+        kolodetsStatus: _building.kolodetsStatus,
+        builders: _building.builders,
+        schemeUrl: _building.schemeUrl,
+        comment: _building.comment,
+        createdAt: _building.createdAt,
+        images: _building.images,
+        customData: _building.customData,
+        materialStatus: MaterialStatus.complete, // Etarli
+        availableMaterials: updatedAvailableMaterials,
+        requiredMaterials: _building.requiredMaterials,
+      );
+
+      await FirebaseService.saveBuilding(updatedBuilding);
+      
+      setState(() {
+        _building = updatedBuilding;
+        _isSaving = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎉 Лойиҳа муваффақиятли тугатилди!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Хатолик: $e')),
+      );
+    }
+  }
+
+  void _showDeleteConfirmation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Диққат!'),
+          ],
+        ),
+        content: Text(
+          'Ушбу қурилиш объектини ўчирмоқчимисиз?\n\n'
+          'Бу амал орқага қайтарилмайди ва барча маълумотлар йўқолади.',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Бекор қилиш'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Ўчириш', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true) {
+      _deleteBuilding();
+    }
+  }
+
+  Future<void> _deleteBuilding() async {
+    setState(() => _isSaving = true);
+    
+    try {
+      await FirebaseService.deleteBuilding(_building.id);
+      
+      // Asosiy ekranga qaytish
+      Navigator.pop(context, true); // true - refresh kerak degani
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Қурилиш объекти ўчирилди'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Хатолик: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _buildExcelStyleMaterialTable() {
+    return Column(
+      children: [
+        // Jadval sarlavhasi
+        Container(
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(8),
+              topRight: Radius.circular(8),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Text(
+                  'Материал номи',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  'Ўлчам',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  'Керакли',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  'Мавжуд',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Material rows
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(8),
+              bottomRight: Radius.circular(8),
+            ),
+          ),
+          child: Column(
+            children: List.generate(_building.requiredMaterials.length, (index) {
+              return _buildExcelStyleMaterialRow(index);
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExcelStyleMaterialRow(int index) {
+    final requiredMaterial = _building.requiredMaterials[index];
+    final materialId = requiredMaterial['materialId'];
+    final materialName = requiredMaterial['materialName'];
+    final materialUnit = requiredMaterial['unit'];
+    final requiredQuantity = requiredMaterial['quantity'];
+    final size = requiredMaterial['size'] ?? '';
+    
+    // Mavjud miqdorni olish
+    final availableQuantity = index < _availableQuantityControllers.length 
+        ? _availableQuantityControllers[index].text 
+        : '0';
+    
+    // Kerakli va mavjud miqdorlarni solishtirish
+    final requiredQty = double.tryParse(requiredQuantity.toString()) ?? 0;
+    final availableQty = double.tryParse(availableQuantity) ?? 0;
+    final isShortage = availableQty < requiredQty;
+    final isCritical = availableQty < requiredQty * 0.5;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isCritical 
+            ? Colors.red.shade50 
+            : (isShortage ? Colors.orange.shade50 : Colors.green.shade50),
+        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: Row(
+          children: [
+            // Material nomi - o'zgartirib bo'lmaydi
+            Expanded(
+              flex: 4,
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.grey.shade100,
+                ),
+                child: Text(
+                  materialName ?? 'Номаълум',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
+            SizedBox(width: 8),
+            
+            // O'lcham - o'zgartirib bo'lmaydi
+            Expanded(
+              flex: 2,
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.grey.shade100,
+                ),
+                child: Text(size.toString()),
+              ),
+            ),
+            SizedBox(width: 8),
+            
+            // Kerakli miqdor - o'zgartirib bo'lmaydi
+            Expanded(
+              flex: 2,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.grey.shade100,
+                      ),
+                      child: Text(requiredQuantity.toString()),
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      materialUnit ?? 'дона',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 8),
+            
+            // Mavjud miqdor - o'zgartirish mumkin
+            Expanded(
+              flex: 2,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: index < _availableQuantityControllers.length 
+                          ? _availableQuantityControllers[index] 
+                          : TextEditingController(text: '0'),
+                      decoration: InputDecoration(
+                        hintText: '0',
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                        border: OutlineInputBorder(),
+                        fillColor: isShortage ? Colors.red.shade50 : Colors.white,
+                        filled: isShortage,
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      materialUnit ?? 'дона',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyMaterialTable() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          // Jadval sarlavhasi
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Материал номи',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Ўлчам',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Керакли',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Мавжуд',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Material rows
+          ...List.generate(_building.requiredMaterials.length, (index) {
+            final requiredMaterial = _building.requiredMaterials[index];
+            final materialId = requiredMaterial['materialId'];
+            final materialName = requiredMaterial['materialName'];
+            final materialUnit = requiredMaterial['unit'];
+            final requiredQuantity = requiredMaterial['quantity'];
+            final size = requiredMaterial['size'] ?? '';
+            
+            // Mavjud miqdorni olish
+            final availableMaterial = _building.availableMaterials.firstWhere(
+              (m) => m['materialId'] == materialId && m['size'] == size,
+              orElse: () => {'quantity': '0'},
+            );
+            final availableQuantity = availableMaterial['quantity'] ?? '0';
+            
+            // Kerakli va mavjud miqdorlarni solishtirish
+            final requiredQty = double.tryParse(requiredQuantity.toString()) ?? 0;
+            final availableQty = double.tryParse(availableQuantity.toString()) ?? 0;
+            final isShortage = availableQty < requiredQty;
+            final isCritical = availableQty < requiredQty * 0.5;
+            
+            return Container(
+              decoration: BoxDecoration(
+                color: isCritical 
+                    ? Colors.red.shade50 
+                    : (isShortage ? Colors.orange.shade50 : Colors.green.shade50),
+                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+              ),
+              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Text(materialName ?? 'Номаълум'),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(size.toString()),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Row(
+                      children: [
+                        Text(requiredQuantity.toString()),
+                        SizedBox(width: 4),
+                        Text(
+                          materialUnit ?? 'дона',
+                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Row(
+                      children: [
+                        Text(
+                          availableQuantity.toString(),
+                          style: TextStyle(
+                            color: isCritical 
+                                ? Colors.red 
+                                : (isShortage ? Colors.orange.shade700 : Colors.green),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          materialUnit ?? 'дона',
+                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

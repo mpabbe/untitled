@@ -8,14 +8,88 @@ class FirebaseService {
   // static final FirebaseStorage _storage = FirebaseStorage.instance;
 
   static const String _buildingsCollection = 'buildings';
+  static const String _imagesCollection = 'uploaded_images'; // Yangi collection
+
+  // Rasm URL'ni Firebase'ga saqlash
+  static Future<void> saveImageUrl(String imageUrl, {
+    String? originalFileName,
+    int? fileSize,
+    String? uploadService,
+  }) async {
+    try {
+      final imageDoc = {
+        'url': imageUrl,
+        'originalFileName': originalFileName,
+        'fileSize': fileSize,
+        'uploadService': uploadService,
+        'uploadedAt': DateTime.now().toIso8601String(),
+        'usageCount': 1,
+      };
+
+      // URL'ni ID sifatida ishlatish (hash)
+      final imageId = imageUrl.hashCode.abs().toString();
+      
+      await _firestore
+          .collection(_imagesCollection)
+          .doc(imageId)
+          .set(imageDoc, SetOptions(merge: true));
+          
+      print('Image URL saved to Firebase: $imageUrl');
+    } catch (e) {
+      print('Error saving image URL: $e');
+    }
+  }
+
+  // Barcha saqlangan rasmlarni olish
+  static Future<List<Map<String, dynamic>>> getSavedImages() async {
+    try {
+      final snapshot = await _firestore
+          .collection(_imagesCollection)
+          .orderBy('uploadedAt', descending: true)
+          .limit(50) // Oxirgi 50 ta rasm
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      print('Error getting saved images: $e');
+      return [];
+    }
+  }
+
+  // Rasm ishlatilganini belgilash
+  static Future<void> incrementImageUsage(String imageUrl) async {
+    try {
+      final imageId = imageUrl.hashCode.abs().toString();
+      
+      await _firestore
+          .collection(_imagesCollection)
+          .doc(imageId)
+          .update({
+        'usageCount': FieldValue.increment(1),
+        'lastUsedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      print('Error incrementing image usage: $e');
+    }
+  }
 
   // Save building to Firestore
   static Future<void> saveBuilding(Building building) async {
     try {
+      // Building saqlash
       await _firestore
           .collection(_buildingsCollection)
           .doc(building.id)
           .set(building.toJson());
+          
+      // Rasmlar usage count'ini oshirish
+      for (final imageUrl in building.images) {
+        await incrementImageUsage(imageUrl);
+      }
     } catch (e) {
       throw Exception('Failed to save building: $e');
     }
@@ -44,13 +118,10 @@ class FirebaseService {
   //   }
   // }
 
-  // Delete building
+  // Building'ni o'chirish
   static Future<void> deleteBuilding(String buildingId) async {
     try {
-      await _firestore
-          .collection(_buildingsCollection)
-          .doc(buildingId)
-          .delete();
+      await _firestore.collection(_buildingsCollection).doc(buildingId).delete();
     } catch (e) {
       throw Exception('Failed to delete building: $e');
     }

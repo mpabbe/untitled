@@ -259,6 +259,22 @@ class MaterialService {
     }
   }
 
+  // Material o'chirish
+  Future<void> deleteMaterial(String materialId) async {
+    try {
+      await _firestore
+          .collection(_materialsCollection)
+          .doc(materialId)
+          .delete();
+      
+      // Cache'ni tozalash
+      _cachedMaterials = null;
+      _lastMaterialsFetch = null;
+    } catch (e) {
+      throw Exception('Failed to delete material: $e');
+    }
+  }
+
   // Clear all caches
   static void clearCache() {
     // _cachedMaterials = null;
@@ -267,6 +283,7 @@ class MaterialService {
     // _lastBuildersFetch = null;
   }
 }
+
 
 
 

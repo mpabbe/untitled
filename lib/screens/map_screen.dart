@@ -747,7 +747,7 @@ class _MapScreenState extends State<MapScreen> {
 
                 // Action buttons
                 Positioned(
-                  top: 20,
+                  top: 200,
                   right: 20,
                   child: Column(
                     children: [
@@ -757,13 +757,13 @@ class _MapScreenState extends State<MapScreen> {
                         onPressed: _resetMapOrientation,
                         color: Colors.blue,
                       ),
-                      SizedBox(height: 8),
-                      _buildActionButton(
-                        icon: Icons.my_location,
-                        tooltip: 'Менинг жойим',
-                        onPressed: _getCurrentLocation,
-                        color: Colors.green,
-                      ),
+                      // SizedBox(height: 8),
+                      // _buildActionButton(
+                      //   icon: Icons.my_location,
+                      //   tooltip: 'Менинг жойим',
+                      //   onPressed: _getCurrentLocation,
+                      //   color: Colors.green,
+                      // ),
                     ],
                   ),
                 ),
