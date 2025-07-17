@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/building.dart';
+import '../models/detected_material.dart';
 import '../models/material_item.dart';
 import '../services/firebase_service.dart';
 import '../services/material_service.dart';
@@ -8,6 +9,7 @@ import '../services/material_detection_service.dart';
 import 'map_picker_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import '../services/platform_service.dart';
 
 class AddBuildingScreen extends StatefulWidget {
   final double latitude;
@@ -169,13 +171,13 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     }
   }
 
-  void _addImageUrlField() {
-    setState(() {
-      _imageUrlControllers.add(TextEditingController());
-    });
-  }
+  // void _addImageUrlField() {
+  //   setState(() {
+  //     _imageUrlControllers.add(TextEditingController());
+  //   });
+  // }
 
-  void _removeImageUrlField(int index) {
+  void _removeImageUrl(int index) {
     if (_imageUrlControllers.length > 1) {
       setState(() {
         _imageUrlControllers[index].dispose();
@@ -302,32 +304,35 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
 
   bool _validateMaterialSelections() {
     // Check required materials
-    final selectedMaterialIds = <String>{};
+    final selectedMaterialIds = <String>[];
     
     for (int i = 0; i < _selectedRequiredMaterials.length; i++) {
       final materialId = _selectedRequiredMaterials[i];
+      final quantity = _requiredQuantityControllers[i].text.trim();
       
-      if (materialId == null) {
-        _showErrorSnackBar('Барча керакли материалларни танланг');
-        return false;
+      if (materialId != null && quantity.isNotEmpty) {
+        final parsedQuantity = double.tryParse(quantity);
+        if (parsedQuantity == null || parsedQuantity <= 0) {
+          _showErrorSnackBar('${i + 1}-қатордаги сон нотўғри');
+          return false;
+        }
+        
+        // Allow duplicate materials - remove this check
+        // selectedMaterialIds.add(materialId);
       }
+    }
+
+    // Check available materials
+    for (int i = 0; i < _selectedAvailableMaterials.length; i++) {
+      final materialId = _selectedAvailableMaterials[i];
+      final quantity = _availableQuantityControllers[i].text.trim();
       
-      // Takrorlanishni tekshirish
-      if (selectedMaterialIds.contains(materialId)) {
-        _showErrorSnackBar('Материал такрорланган: ${_getMaterialNameById(materialId)}');
-        return false;
-      }
-      selectedMaterialIds.add(materialId);
-      
-      if (_requiredQuantityControllers[i].text.trim().isEmpty) {
-        _showErrorSnackBar('Барча керакли материаллар учун миқдор киритинг');
-        return false;
-      }
-      
-      final quantity = double.tryParse(_requiredQuantityControllers[i].text.trim());
-      if (quantity == null || quantity <= 0) {
-        _showErrorSnackBar('Миқдор тўғри сон бўлиши керак');
-        return false;
+      if (materialId != null && quantity.isNotEmpty) {
+        final parsedQuantity = double.tryParse(quantity);
+        if (parsedQuantity == null || parsedQuantity < 0) {
+          _showErrorSnackBar('${i + 1}-қатордаги мавжуд материал сони нотўғри');
+          return false;
+        }
       }
     }
     
@@ -513,46 +518,142 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         title: Text('Бино қўшиш'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildBasicInfoSection(),
-              SizedBox(height: 24),
-              _buildMaterialsSection(),
-              SizedBox(height: 24),
-              _buildImageSection(),
-              SizedBox(height: 24),
-              _buildSaveButton(),
-            ],
-          ),
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet = constraints.maxWidth > 600;
+          final isMobile = constraints.maxWidth < 500;
+          
+          return Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(isMobile ? 12 : 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Platform info - responsive
+                  _buildPlatformInfo(isMobile),
+                  SizedBox(height: isMobile ? 16 : 20),
+                  
+                  // Basic info section - responsive layout
+                  if (isTablet)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 2, child: _buildBasicInfoSection(isMobile)),
+                        SizedBox(width: 20),
+                        Expanded(flex: 3, child: _buildMaterialsSection(isMobile)),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildBasicInfoSection(isMobile),
+                        SizedBox(height: 20),
+                        _buildMaterialsSection(isMobile),
+                      ],
+                    ),
+                  
+                  SizedBox(height: isMobile ? 16 : 20),
+                  _buildImagesSection(),
+                  
+                  SizedBox(height: isMobile ? 20 : 24),
+                  _buildSaveButton(isMobile),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBasicInfoSection() {
+  Widget _buildPlatformInfo(bool isMobile) {
+    return Container(
+      margin: EdgeInsets.all(16),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: PlatformService.isWindows ? Colors.blue.shade50 : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: PlatformService.isWindows ? Colors.blue.shade200 : Colors.orange.shade200
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            PlatformService.isWindows ? Icons.computer : Icons.phone_android,
+            color: PlatformService.isWindows ? Colors.blue : Colors.orange,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Platform: ${PlatformService.platformName}',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  PlatformService.isWindows 
+                    ? 'AI материал аниқлаш (Python API)'
+                    : 'Қўлда материал киритиш режими',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          if (PlatformService.isWindows)
+            FutureBuilder<bool>(
+              future: MaterialDetectionService().isPythonApiAvailable(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return SizedBox(
+                    width: 16, 
+                    height: 16, 
+                    child: CircularProgressIndicator(strokeWidth: 2)
+                  );
+                }
+                
+                final isAvailable = snapshot.data ?? false;
+                return Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isAvailable ? Colors.green : Colors.red,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isAvailable ? 'AI Ready' : 'AI Offline',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBasicInfoSection(bool isMobile) {
     return Card(
-      elevation: 2,
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Асосий маълумотлар',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.blue,
+              style: TextStyle(
+                fontSize: isMobile ? 16 : 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 16),
-
+            SizedBox(height: isMobile ? 12 : 16),
+            
             // Serial Number
             TextFormField(
               controller: _serialNumberController,
@@ -769,11 +870,10 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     );
   }
 
-  Widget _buildMaterialsSection() {
+  Widget _buildMaterialsSection(bool isMobile) {
     return Card(
-      elevation: 2,
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -936,14 +1036,11 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     final materialId = _selectedRequiredMaterials[index];
     final materialUnit = materialId != null ? _getMaterialUnitById(materialId) : 'дона';
     
-    // Bir xil material tanlangan qatorlarni topish
-    final isDuplicate = materialId != null && 
-                        _selectedRequiredMaterials.indexOf(materialId) != index && 
-                        _selectedRequiredMaterials.contains(materialId);
+    // Remove duplicate check completely - allow unlimited duplicates
     
     return Container(
       decoration: BoxDecoration(
-        color: isDuplicate ? Colors.red.shade50 : (index % 2 == 0 ? Colors.grey.shade50 : Colors.white),
+        color: index % 2 == 0 ? Colors.grey.shade50 : Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
       ),
       child: Padding(
@@ -958,20 +1055,14 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                   if (textEditingValue.text.isEmpty) {
                     return _materials;
                   }
-                  // Allaqachon tanlangan materiallarni filtrlash
+                  // Allow all materials - no duplicate filtering
                   final filteredMaterials = _materials.where((material) => 
-                    material.name.toLowerCase().contains(textEditingValue.text.toLowerCase()) &&
-                    !_selectedRequiredMaterials.contains(material.id)
+                    material.name.toLowerCase().contains(textEditingValue.text.toLowerCase())
                   ).toList();
                   return filteredMaterials;
                 },
                 displayStringForOption: (MaterialItem option) => option.name,
-                fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                  // Agar material tanlangan bo'lsa, nomini ko'rsatish
-                  if (materialId != null) {
-                    final materialName = _getMaterialNameById(materialId);
-                    textEditingController.text = materialName;
-                  }
+                fieldViewBuilder: (context, textEditingController, focusNode, onEditingComplete) {
                   
                   return TextField(
                     controller: textEditingController,
@@ -980,8 +1071,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                       hintText: 'Материал номи',
                       contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                       border: OutlineInputBorder(),
-                      errorText: isDuplicate ? 'Такрорланган' : null,
-                      errorStyle: TextStyle(color: Colors.red, fontSize: 10),
+                      // Remove error text for duplicates
                     ),
                     onSubmitted: (value) {
                       // Enter bosilganda yangi qator qo'shish
@@ -1009,45 +1099,36 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     }
                   });
                 },
-                optionsViewBuilder: (context, onSelected, options) {
-                  return Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      elevation: 4,
-                      child: Container(
-                        width: 300,
-                        constraints: BoxConstraints(maxHeight: 200),
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: options.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            final MaterialItem option = options.elementAt(index);
-                            return ListTile(
-                              title: Text(option.name),
-                              subtitle: Text('${option.unit}'),
-                              trailing: IconButton(
-                                icon: Icon(Icons.close, color: Colors.red, size: 18),
-                                onPressed: () => _showDeleteMaterialFromSuggestion(option),
-                                tooltip: 'Материални ўчириш',
-                              ),
-                              onTap: () {
-                                onSelected(option);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  );
+              ),
+            ),
+            
+            SizedBox(width: 8),
+            
+            // Kerakli miqdor
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                controller: _requiredQuantityControllers[index],
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: 'Сони',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  border: OutlineInputBorder(),
+                ),
+                onFieldSubmitted: (value) {
+                  if (index == _selectedRequiredMaterials.length - 1) {
+                    _addRequiredMaterial();
+                  }
                 },
               ),
             ),
+            
             SizedBox(width: 8),
             
             // O'lcham
             Expanded(
               flex: 2,
-              child: TextField(
+              child: TextFormField(
                 controller: _requiredSizeControllers[index],
                 decoration: InputDecoration(
                   hintText: 'Ўлчам',
@@ -1055,103 +1136,62 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) {
-                  // O'lchamni available ga ham ko'chirish
-                  _availableSizeControllers[index].text = value;
+                  // Available materials'dagi o'lchamni ham yangilash
+                  if (index < _availableSizeControllers.length) {
+                    _availableSizeControllers[index].text = value;
+                  }
                 },
-                onSubmitted: (value) {
-                  // Enter bosilganda yangi qator qo'shish
+                onFieldSubmitted: (value) {
                   if (index == _selectedRequiredMaterials.length - 1) {
                     _addRequiredMaterial();
                   }
                 },
               ),
             ),
+            
             SizedBox(width: 8),
             
-            // Kerakli miqdor
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _requiredQuantityControllers[index],
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      onSubmitted: (value) {
-                        // Enter bosilganda yangi qator qo'shish
-                        if (index == _selectedRequiredMaterials.length - 1) {
-                          _addRequiredMaterial();
-                        }
-                      },
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      materialUnit,
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                    ),
-                  ),
-                ],
+            // Birlik
+            Container(
+              width: 60,
+              child: Text(
+                materialUnit,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
               ),
             ),
+            
             SizedBox(width: 8),
             
             // Mavjud miqdor
             Expanded(
               flex: 2,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _availableQuantityControllers[index],
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      onSubmitted: (value) {
-                        // Enter bosilganda yangi qator qo'shish
-                        if (index == _selectedRequiredMaterials.length - 1) {
-                          _addRequiredMaterial();
-                        }
-                      },
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      materialUnit,
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                    ),
-                  ),
-                ],
+              child: TextFormField(
+                controller: _availableQuantityControllers[index],
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: 'Мавжуд',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  border: OutlineInputBorder(),
+                ),
+                onFieldSubmitted: (value) {
+                  if (index == _selectedRequiredMaterials.length - 1) {
+                    _addRequiredMaterial();
+                  }
+                },
               ),
             ),
+            
+            SizedBox(width: 8),
             
             // Delete button
             IconButton(
               icon: Icon(Icons.delete, color: Colors.red, size: 20),
-              onPressed: _selectedRequiredMaterials.length > 1 ? () => _removeRequiredMaterial(index) : null,
-              tooltip: 'Ўчириш',
+              onPressed: _selectedRequiredMaterials.length > 1 
+                  ? () => _removeRequiredMaterial(index)
+                  : null,
+              padding: EdgeInsets.all(4),
+              constraints: BoxConstraints(minWidth: 32, minHeight: 32),
             ),
           ],
         ),
@@ -1281,7 +1321,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     return SizedBox.shrink(); // Placeholder - remove this method
   }
 
-  Widget _buildImageSection() {
+  Widget _buildImagesSection() {
     return Card(
       child: Padding(
         padding: EdgeInsets.all(16),
@@ -1293,148 +1333,54 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 Icon(Icons.image, color: Colors.blue),
                 SizedBox(width: 8),
                 Text(
-                  'Расмлар',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Spacer(),
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _showSavedImages = !_showSavedImages;
-                    });
-                  },
-                  icon: Icon(_showSavedImages ? Icons.expand_less : Icons.expand_more),
-                  label: Text('Сақланган расмлар (${_savedImages.length})'),
+                  'Расм URL лари',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ],
             ),
-            
-            // Saqlangan rasmlar
-            if (_showSavedImages) ...[
-              SizedBox(height: 16),
-              Container(
-                height: 120,
-                child: _savedImages.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Сақланган расмлар йўқ',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      )
-                    : ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _savedImages.length,
-                        itemBuilder: (context, index) {
-                          final image = _savedImages[index];
-                          return Container(
-                            width: 100,
-                            margin: EdgeInsets.only(right: 8),
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () => _selectSavedImage(image['url']),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.grey.shade300),
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          image['url'],
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              color: Colors.grey.shade200,
-                                              child: Icon(Icons.error, color: Colors.grey),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  '${image['usageCount'] ?? 1}x',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              Divider(),
-            ],
-            
             SizedBox(height: 16),
-
-            // Existing image URL fields
-            ...List.generate(_imageUrlControllers.length, (index) {
+            
+            // Only URL input fields, no file upload
+            ..._imageUrlControllers.asMap().entries.map((entry) {
+              final index = entry.key;
+              final controller = entry.value;
+              
               return Padding(
-                padding: EdgeInsets.only(bottom: 16),
+                padding: EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
                     Expanded(
                       child: TextFormField(
-                        controller: _imageUrlControllers[index],
+                        controller: controller,
                         decoration: InputDecoration(
-                          labelText: 'Расм URL ${index + 1}',
+                          hintText: 'Расм URL киритинг',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           prefixIcon: Icon(Icons.link),
-                          border: OutlineInputBorder(),
                         ),
+                        onChanged: (value) => _saveImageUrl(value),
                       ),
                     ),
-                    if (_imageUrlControllers.length > 1) ...[
-                      SizedBox(width: 8),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _removeImageUrlField(index),
-                      ),
-                    ],
+                    SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(Icons.remove_circle, color: Colors.red),
+                      onPressed: () => _removeImageUrl(index),
+                    ),
                   ],
                 ),
               );
-            }),
-
-            // Add image buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _addImageUrlField,
-                    icon: Icon(Icons.add_photo_alternate),
-                    label: Text('URL қўшиш'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: !_isDetecting ? _detectMaterialsFromFile : null,
-                    icon: _isDetecting 
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(Icons.file_upload),
-                    label: Text(_isDetecting ? 'Юкланмоқда...' : 'Файл юклаш'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
+            }).toList(),
+            
+            SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _imageUrlControllers.add(TextEditingController());
+                });
+              },
+              icon: Icon(Icons.add),
+              label: Text('URL қўшиш'),
             ),
           ],
         ),
@@ -1442,9 +1388,10 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     );
   }
 
-  Widget _buildSaveButton() {
+  Widget _buildSaveButton(bool isMobile) {
     return SizedBox(
       width: double.infinity,
+      height: isMobile ? 48 : 56,
       child: ElevatedButton(
         onPressed: _isSaving ? null : _save,
         style: ElevatedButton.styleFrom(
@@ -1965,125 +1912,133 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   }
 
   // Dialog'ни to'liq qayta yozish - Navigator lock'siz
-  void _showDetectedMaterialsDialog(List<DetectedMaterial> detectedMaterials) {
-    // Group materials by main components and their sub-components
-    final groupedMaterials = <String, List<DetectedMaterial>>{};
-  
-    for (final material in detectedMaterials) {
-      if (material.isMainComponent) {
-        groupedMaterials[material.name] = [material];
-      }
-    }
-  
-    // Add sub-components to their parent groups
-    for (final material in detectedMaterials) {
-      if (!material.isMainComponent && material.parentMaterial != null) {
-        final parentKey = groupedMaterials.keys.firstWhere(
-          (key) => key.contains(material.parentMaterial!),
-          orElse: () => 'Бошқа компонентлар',
-        );
-      
-        if (groupedMaterials.containsKey(parentKey)) {
-          groupedMaterials[parentKey]!.add(material);
-        } else {
-          groupedMaterials['Бошқа компонентлар'] = [material];
-        }
-      }
-    }
-
+  void _showDetectedMaterialsDialog(List<DetectedMaterial> materials) {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.auto_awesome, color: Colors.green),
-              SizedBox(width: 8),
-              Text('AI аниқлаган материаллар'),
-            ],
-          ),
-          content: Container(
-            width: double.maxFinite,
-            height: 400,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Жами ${detectedMaterials.length} та материал топилди:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 12),
-                
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: groupedMaterials.keys.length,
-                    itemBuilder: (context, index) {
-                      final groupName = groupedMaterials.keys.elementAt(index);
-                      final materials = groupedMaterials[groupName]!;
-                      final mainMaterial = materials.first;
-                      final components = materials.skip(1).toList();
-                      
-                      return Card(
-                        margin: EdgeInsets.only(bottom: 8),
-                        child: ExpansionTile(
-                          leading: Icon(
-                            Icons.construction,
-                            color: Colors.blue,
-                          ),
-                          title: Text(
-                            mainMaterial.name,
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            '${mainMaterial.size} • ${mainMaterial.quantity} дона',
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                          children: [
-                            if (components.isNotEmpty) ...[
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  'Компонентлар:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange,
-                                  ),
-                                ),
-                              ),
-                              ...components.map((component) => ListTile(
-                                dense: true,
-                                leading: Icon(Icons.arrow_right, color: Colors.orange),
-                                title: Text(component.name),
-                                subtitle: Text('${component.size} • ${component.quantity} дона'),
-                              )),
-                            ],
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              PlatformService.isWindows ? Icons.smart_toy : Icons.preview,
+              color: PlatformService.isWindows ? Colors.blue : Colors.orange,
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Бекор қилиш'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _applyDetectedMaterials(detectedMaterials);
-              },
-              child: Text('Барчасини қўшиш'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
+            SizedBox(width: 8),
+            Text(
+              PlatformService.isWindows 
+                ? 'AI аниқлаган материаллар'
+                : 'Материаллар preview',
             ),
           ],
         ),
+        content: Container(
+          width: double.maxFinite,
+          height: 400,
+          child: Column(
+            children: [
+              if (PlatformService.isAndroid)
+                Container(
+                  padding: EdgeInsets.all(8),
+                  margin: EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '📱 Android режимида материалларни қўлда таҳрирлаш мумкин',
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
+                  ),
+                ),
+              
+              Expanded(
+                child: ListView.builder(
+                  itemCount: materials.length,
+                  itemBuilder: (context, index) {
+                    final material = materials[index];
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: PlatformService.isWindows 
+                            ? Colors.blue.shade100 
+                            : Colors.orange.shade100,
+                          child: Text('${index + 1}'),
+                        ),
+                        title: Text(material.name),
+                        subtitle: Text('${material.size} • ${material.quantity} ${material.unit}'),
+                        trailing: PlatformService.isAndroid
+                          ? IconButton(
+                              icon: Icon(Icons.edit),
+                              onPressed: () => _editMaterialInDialog(material, index),
+                            )
+                          : Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                            ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Бекор қилиш'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _addDetectedMaterials(materials);
+              Navigator.pop(context);
+            },
+            child: Text(
+              PlatformService.isWindows ? 'AI натижаларни қўшиш' : 'Материалларни қўшиш'
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editMaterialInDialog(DetectedMaterial material, int index) {
+    // Android uchun material edit dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Материални таҳрирлаш'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              initialValue: material.name,
+              decoration: InputDecoration(labelText: 'Материал номи'),
+              onChanged: (value) => material.name = value,
+            ),
+            SizedBox(height: 16),
+            TextFormField(
+              initialValue: material.size,
+              decoration: InputDecoration(labelText: 'Ўлчам'),
+              onChanged: (value) => material.size = value,
+            ),
+            SizedBox(height: 16),
+            TextFormField(
+              initialValue: material.quantity.toString(),
+              decoration: InputDecoration(labelText: 'Миқдор'),
+              keyboardType: TextInputType.number,
+              onChanged: (value) => material.quantity = int.tryParse(value) ?? 1,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Бекор қилиш'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Сақлаш'),
+          ),
+        ],
       ),
     );
   }
@@ -2160,27 +2115,27 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     }
   }
 
-  MaterialItem? _findMatchingMaterial(String detectedName) {
-    // Fuzzy matching - o'xshash nomlarni topish
-    final normalizedDetected = detectedName.toLowerCase().trim();
+  // MaterialItem? _findMatchingMaterial(String detectedName) {
+  //   // Fuzzy matching - o'xshash nomlarni topish
+  //   final normalizedDetected = detectedName.toLowerCase().trim();
     
-    for (final material in _materials) {
-      final normalizedMaterial = material.name.toLowerCase().trim();
+  //   for (final material in _materials) {
+  //     final normalizedMaterial = material.name.toLowerCase().trim();
       
-      // To'liq mos kelish
-      if (normalizedMaterial == normalizedDetected) {
-        return material;
-      }
+  //     // To'liq mos kelish
+  //     if (normalizedMaterial == normalizedDetected) {
+  //       return material;
+  //     }
       
-      // Qisman mos kelish
-      if (normalizedMaterial.contains(normalizedDetected) || 
-          normalizedDetected.contains(normalizedMaterial)) {
-        return material;
-      }
-    }
+  //     // Qisman mos kelish
+  //     if (normalizedMaterial.contains(normalizedDetected) || 
+  //         normalizedDetected.contains(normalizedMaterial)) {
+  //       return material;
+  //     }
+  //   }
     
-    return null;
-  }
+  //   return null;
+  // }
 
   Future<MaterialItem?> _createNewMaterial(String name) async {
     try {
@@ -2770,5 +2725,172 @@ void _addQuickMaterial(String materialName, String materialSize) {
   });
   
   _showSuccessSnackBar('$materialName қўшилди');
+}
+
+void _addDetectedMaterials(List<DetectedMaterial> materials) async {
+  if (materials.isEmpty) {
+    _showErrorSnackBar('Қўшиш учун материал танланмади');
+    return;
+  }
+
+  try {
+    print('Adding ${materials.length} detected materials...');
+    
+    // Har bir aniqlangan material uchun
+    for (final detectedMaterial in materials) {
+      // Mavjud materiallar ro'yxatidan qidirish
+      MaterialItem? existingMaterial = _findMatchingMaterial(detectedMaterial.name);
+
+      // Agar material topilmasa, yangi yaratish
+      if (existingMaterial == null) {
+        print('Creating new material: ${detectedMaterial.name}');
+        
+        final newMaterial = MaterialItem(
+          id: DateTime.now().millisecondsSinceEpoch.toString() + 
+              materials.indexOf(detectedMaterial).toString(),
+          name: detectedMaterial.name,
+          unit: detectedMaterial.unit,
+        );
+
+        // Firebase'ga qo'shish
+        await _materialService.addMaterial(newMaterial);
+        
+        setState(() {
+          _materials.add(newMaterial);
+        });
+        
+        existingMaterial = newMaterial;
+      }
+
+      // Yangi qator qo'shish
+      setState(() {
+        // Required materials
+        _selectedRequiredMaterials.add(existingMaterial!.id);
+        _requiredQuantityControllers.add(
+          TextEditingController(text: detectedMaterial.quantity.toString())
+        );
+        _requiredSizeControllers.add(
+          TextEditingController(text: detectedMaterial.size)
+        );
+        
+        // Available materials (bo'sh qiymatlar bilan)
+        _selectedAvailableMaterials.add(existingMaterial.id);
+        _availableQuantityControllers.add(TextEditingController(text: '0'));
+        _availableSizeControllers.add(
+          TextEditingController(text: detectedMaterial.size)
+        );
+      });
+      
+      print('Added material: ${detectedMaterial.name} - ${detectedMaterial.quantity} ${detectedMaterial.unit}');
+    }
+
+    // Success message
+    final platformText = PlatformService.isWindows ? 'AI аниқлаган' : 'Танланган';
+    _showSuccessSnackBar('$platformText ${materials.length} та материал қўшилди');
+    
+    // Scroll to bottom to show new materials
+    Future.delayed(Duration(milliseconds: 300), () {
+      if (mounted) {
+        Scrollable.ensureVisible(
+          context,
+          duration: Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+    
+  } catch (e) {
+    print('Error adding detected materials: $e');
+    _showErrorSnackBar('Материалларни қўшишда хатолик: $e');
+  }
+}
+
+MaterialItem? _findMatchingMaterial(String detectedName) {
+  // Fuzzy matching - o'xshash nomlarni topish
+  final normalizedDetected = detectedName.toLowerCase().trim();
+  
+  for (final material in _materials) {
+    final normalizedMaterial = material.name.toLowerCase().trim();
+    
+    // To'liq mos kelish
+    if (normalizedMaterial == normalizedDetected) {
+      return material;
+    }
+    
+    // Qisman mos kelish (50% dan ko'p mos kelishi kerak)
+    if (normalizedMaterial.contains(normalizedDetected) || 
+        normalizedDetected.contains(normalizedMaterial)) {
+      return material;
+    }
+    
+    // Keyword matching for common materials
+    final keywords = [
+      'труба', 'трубопровод', 'pipe', 'quvur',
+      'муфта', 'тройник', 'отвод', 'переход', 'заглушка', 'фланец',
+      'задвижка', 'вентиль', 'кран', 'клапан',
+      'бетон', 'железобетон', 'кольца', 'плита', 'блок',
+      'арматура', 'сетка', 'стержень', 'проволока'
+    ];
+    
+    for (final keyword in keywords) {
+      if (normalizedMaterial.contains(keyword) && normalizedDetected.contains(keyword)) {
+        return material;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Fayl tanlash va URL sifatida saqlash
+Future<void> _pickAndSaveImageFile() async {
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      final fileName = result.files.single.name;
+      
+      // Faylni local path sifatida saqlash
+      final localPath = file.path;
+      
+      // URL controller ga qo'shish
+      setState(() {
+        _imageUrlControllers.add(TextEditingController(text: localPath));
+      });
+      
+      // Firebase ga saqlash
+      await FirebaseService.saveImageUrl(
+        localPath,
+        originalFileName: fileName,
+        fileSize: await file.length(),
+        uploadService: 'local_file',
+      );
+      
+      _showSuccessSnackBar('Файл қўшилди: $fileName');
+    }
+  } catch (e) {
+    _showErrorSnackBar('Файл танлашда хатолик: $e');
+  }
+}
+
+// URL qo'shish
+void _addImageUrlField() {
+  setState(() {
+    _imageUrlControllers.add(TextEditingController());
+  });
+}
+
+// URL saqlash
+Future<void> _saveImageUrl(String url) async {
+  if (url.trim().isNotEmpty) {
+    await FirebaseService.saveImageUrl(
+      url.trim(),
+      uploadService: 'manual_url',
+    );
+  }
 }
 }

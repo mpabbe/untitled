@@ -133,158 +133,125 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_building.uniqueName),
+        title: Text(_building.uniqueName ?? 'Бино тафсилотлари'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
-          if (!_isEditing)
-            IconButton(
-              icon: Icon(Icons.edit),
-              onPressed: () => setState(() => _isEditing = true),
-            ),
-          if (_isEditing) ...[
-            IconButton(
-              icon: Icon(Icons.close),
-              onPressed: () {
-                setState(() => _isEditing = false);
-                _initializeControllers();
-              },
-            ),
-            IconButton(
-              icon: Icon(Icons.save),
-              onPressed: _isSaving ? null : _saveChanges,
-            ),
-          ],
-          // O'chirish tugmasi
           IconButton(
-            icon: Icon(Icons.delete, color: Colors.red),
-            onPressed: _showDeleteConfirmation,
+            icon: Icon(_isEditing ? Icons.save : Icons.edit),
+            onPressed: _isEditing ? _saveChanges : () => setState(() => _isEditing = true),
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatusHeader(),
-              SizedBox(height: 20),
-              
-              Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet = constraints.maxWidth > 600;
+          final isMobile = constraints.maxWidth < 500;
+          
+          return Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(isMobile ? 12 : 16),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 2, child: _buildBasicInfo()),
-                  SizedBox(width: 20),
-                  Expanded(flex: 3, child: _buildMaterialsInfo()),
+                  _buildStatusHeader(isMobile),
+                  SizedBox(height: isMobile ? 16 : 20),
+                  
+                  // Main content - responsive layout
+                  if (isTablet)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 2, child: _buildBasicInfo(isMobile)),
+                        SizedBox(width: 20),
+                        Expanded(flex: 3, child: _buildMaterialsInfo(isMobile)),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildBasicInfo(isMobile),
+                        SizedBox(height: 20),
+                        _buildMaterialsInfo(isMobile),
+                      ],
+                    ),
+                  
+                  SizedBox(height: isMobile ? 16 : 20),
+                  _buildSchemeSection(isMobile),
+                  
+                  if (_building.images.isNotEmpty) ...[
+                    SizedBox(height: isMobile ? 16 : 20),
+                    _buildImagesSection(isMobile),
+                  ],
+                  
+                  SizedBox(height: isMobile ? 20 : 24),
+                  _buildProjectCompletionSwitch(isMobile),
                 ],
               ),
-              
-              SizedBox(height: 20),
-              _buildSchemeSection(),
-              
-              if (_building.images.isNotEmpty) ...[
-                SizedBox(height: 20),
-                _buildImagesSection(true),
-              ],
-              
-              // Loyihani tugatish switch'i
-              SizedBox(height: 24),
-              _buildProjectCompletionSwitch(),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildStatusHeader() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _getStatusColor(_building.status).withOpacity(0.1),
-            _getStatusColor(_building.status).withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getStatusColor(_building.status).withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _getStatusColor(_building.status),
-              borderRadius: BorderRadius.circular(50),
-            ),
-            child: Icon(
-              _getStatusIcon(_building.status),
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Лойиҳа ҳолати',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  _getStatusText(_building.status),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: _getStatusColor(_building.status),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_building.materialStatus != null)
+  Widget _buildStatusHeader(bool isMobile) {
+    return Card(
+      color: _getStatusColor(_building.status).withOpacity(0.1),
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        child: Row(
+          children: [
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: EdgeInsets.all(isMobile ? 8 : 12),
               decoration: BoxDecoration(
-                color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.3),
-                ),
+                color: _getStatusColor(_building.status),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Icon(
+                _getStatusIcon(_building.status),
+                color: Colors.white,
+                size: isMobile ? 20 : 24,
+              ),
+            ),
+            SizedBox(width: isMobile ? 12 : 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    _getMaterialStatusIcon(_building.materialStatus!),
-                    size: 16,
-                    color: _getMaterialStatusColor(_building.materialStatus!),
-                  ),
-                  SizedBox(width: 6),
                   Text(
-                    'Материал: ${_getMaterialStatusText(_building.materialStatus!)}',
+                    _building.kolodetsStatus ?? 'Белгиланмаган',
                     style: TextStyle(
-                      color: _getMaterialStatusColor(_building.materialStatus!),
+                      fontSize: isMobile ? 16 : 18,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      color: _getStatusColor(_building.status),
+                    ),
+                  ),
+                  Text(
+                    'Лойиҳа ҳолати',
+                    style: TextStyle(
+                      fontSize: isMobile ? 12 : 14,
+                      color: Colors.grey[600],
                     ),
                   ),
                 ],
               ),
             ),
-        ],
+            Text(
+              DateFormat('dd.MM.yyyy').format(_building.createdAt),
+              style: TextStyle(
+                fontSize: isMobile ? 12 : 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildBasicInfo() {
+  Widget _buildBasicInfo(bool isMobile) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -528,13 +495,13 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                           ),
                         ],
                       ),
-          ),
+          )
         ],
       ),
     );
   }
 
-  Widget _buildMaterialsInfo() {
+  Widget _buildMaterialsInfo(bool isMobile) {
     // Create a map of available materials for easier lookup
     final availableMaterialsMap = <String, Map<String, dynamic>>{};
     for (final material in _building.availableMaterials) {
@@ -605,10 +572,10 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
               return isNarrow
                   ? Column(
                       children: [
-                        _buildMaterialComparison(),
+                        _buildMaterialComparison(isMobile),
                       ],
                     )
-                  : _buildMaterialComparison();
+                  : _buildMaterialComparison(isMobile);
             },
           ),
         ],
@@ -616,63 +583,117 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     );
   }
 
-  Widget _buildMaterialComparison() {
+  Widget _buildMaterialComparison(bool isMobile) {
     if (_building.requiredMaterials.isEmpty) {
       return Center(
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Материаллар мавжуд эмас'),
+          padding: EdgeInsets.all(isMobile ? 12 : 16),
+          child: Text(
+            'Материаллар мавжуд эмас',
+            style: TextStyle(fontSize: isMobile ? 14 : 16),
+          ),
         ),
       );
     }
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Material status indicator
-        Container(
-          margin: EdgeInsets.only(bottom: 16),
-          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          decoration: BoxDecoration(
-            color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _getMaterialStatusColor(_building.materialStatus!).withOpacity(0.3)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                _getMaterialStatusIcon(_building.materialStatus!),
-                color: _getMaterialStatusColor(_building.materialStatus!),
-                size: 20,
+
+    return SingleChildScrollView(
+      scrollDirection: isMobile ? Axis.horizontal : Axis.vertical,
+      child: DataTable(
+        columnSpacing: isMobile ? 16 : 24,
+        dataRowHeight: isMobile ? 48 : 56,
+        headingRowHeight: isMobile ? 48 : 56,
+        columns: [
+          DataColumn(
+            label: Text(
+              'Материал',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: isMobile ? 12 : 14,
               ),
-              SizedBox(width: 8),
-              Text(
-                'Материал ҳолати: ${_getMaterialStatusText(_building.materialStatus!)}',
-                style: TextStyle(
-                  color: _getMaterialStatusColor(_building.materialStatus!),
-                  fontWeight: FontWeight.bold,
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'Ўлчам',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: isMobile ? 12 : 14,
+              ),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'Сони',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: isMobile ? 12 : 14,
+              ),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'Ҳолат',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: isMobile ? 12 : 14,
+              ),
+            ),
+          ),
+        ],
+        rows: _building.requiredMaterials.map<DataRow>((material) {
+          final materialName = material['materialName'] ?? 'Номсиз';
+          final materialSize = material['size'] ?? '';
+          final materialQuantity = material['quantity'] ?? 0;
+          final materialUnit = material['unit'] ?? 'дона';
+          
+          return DataRow(
+            cells: [
+              DataCell(
+                Text(
+                  materialName,
+                  style: TextStyle(fontSize: isMobile ? 12 : 14),
+                ),
+              ),
+              DataCell(
+                Text(
+                  materialSize,
+                  style: TextStyle(fontSize: isMobile ? 12 : 14),
+                ),
+              ),
+              DataCell(
+                Text(
+                  '$materialQuantity $materialUnit',
+                  style: TextStyle(fontSize: isMobile ? 12 : 14),
+                ),
+              ),
+              DataCell(
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 6 : 8,
+                    vertical: isMobile ? 2 : 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Керак',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isMobile ? 10 : 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],
-          ),
-        ),
-        
-        // Excel kabi jadval
-        if (_isEditing) 
-          _buildExcelStyleMaterialTable()
-        else
-          _buildReadOnlyMaterialTable(),
-      ],
+          );
+        }).toList(),
+      ),
     );
   }
 
-  Widget _buildEditableMaterialRow(int index, Map<String, dynamic> requiredMaterial, Map<String, dynamic>? availableMaterial) {
-    // O'chirildi - _buildExcelStyleMaterialRow bilan almashtirildi
-    return Container();
-  }
-
-  Widget _buildSchemeSection() {
+  Widget _buildSchemeSection(bool isMobile) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -871,64 +892,55 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     );
   }
 
-  Widget _buildImagesSection(bool isWideScreen) {
-    return Container(
-      padding: EdgeInsets.all(isWideScreen ? 16 : 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.photo_library, color: Colors.blue),
-              SizedBox(width: 8),
-              Text(
-                'Расмлар',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          
-          GridView.builder(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isWideScreen ? 4 : 2,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+  Widget _buildImagesSection(bool isMobile) {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.image, color: Colors.blue),
+                SizedBox(width: 8),
+                Text(
+                  'Расмлар',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
             ),
-            itemCount: _building.images.length,
-            itemBuilder: (context, index) {
-              return GestureDetector(
-                onTap: () => _showFullScreenImage(_building.images[index]),
-                child: ClipRRect(
+            SizedBox(height: 16),
+            
+            // Only show images, no file upload functionality
+            GridView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: isMobile ? 2 : 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1,
+              ),
+              itemCount: _building.images.length,
+              itemBuilder: (context, index) {
+                final imageUrl = _building.images[index];
+                return ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.network(
-                    _building.images[index],
+                    imageUrl,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: Colors.grey.shade200,
-                        child: Icon(Icons.error, color: Colors.grey),
+                        color: Colors.grey[300],
+                        child: Icon(Icons.broken_image, color: Colors.grey[600]),
                       );
                     },
                   ),
-                ),
-              );
-            },
-          ),
-        ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1549,7 +1561,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     );
   }
 
-  Widget _buildProjectCompletionSwitch() {
+  Widget _buildProjectCompletionSwitch(bool isMobile) {
     final isCompleted = _building.status == BuildingStatus.completed && 
                        _building.materialStatus == MaterialStatus.complete;
     
@@ -1853,47 +1865,27 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   Widget _buildExcelStyleMaterialTable() {
     return Column(
       children: [
-        // Jadval sarlavhasi
+        // Header
         Container(
-          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
+            color: Colors.blue.shade50,
+            border: Border.all(color: Colors.blue.shade200),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(8),
               topRight: Radius.circular(8),
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 4,
-                child: Text(
-                  'Материал номи',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  'Ўлчам',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  'Керакли',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  'Мавжуд',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                ),
-              ),
-            ],
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(flex: 4, child: Text('Материал номи', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 2, child: Text('Ўлчам', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 2, child: Text('Керакли', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
+                Expanded(flex: 2, child: Text('Мавжуд', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green))),
+                SizedBox(width: 50, child: Text('Амал', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
+              ],
+            ),
           ),
         ),
         
@@ -1907,152 +1899,253 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             ),
           ),
           child: Column(
-            children: List.generate(_building.requiredMaterials.length, (index) {
-              return _buildExcelStyleMaterialRow(index);
-            }),
+            children: [
+              ...List.generate(_building.requiredMaterials.length, (index) {
+                return _buildEditableMaterialRow(index);
+              }),
+              
+              // Add new material button
+              Container(
+                width: double.infinity,
+                margin: EdgeInsets.all(8),
+                child: OutlinedButton.icon(
+                  onPressed: _addNewMaterialRow,
+                  icon: Icon(Icons.add, color: Colors.blue),
+                  label: Text('Янги материал қўшиш', style: TextStyle(color: Colors.blue)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.blue),
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildExcelStyleMaterialRow(int index) {
+  Widget _buildEditableMaterialRow(int index) {
     final requiredMaterial = _building.requiredMaterials[index];
     final materialId = requiredMaterial['materialId'];
-    final materialName = requiredMaterial['materialName'];
-    final materialUnit = requiredMaterial['unit'];
-    final requiredQuantity = requiredMaterial['quantity'];
-    final size = requiredMaterial['size'] ?? '';
-    
-    // Mavjud miqdorni olish
-    final availableQuantity = index < _availableQuantityControllers.length 
-        ? _availableQuantityControllers[index].text 
-        : '0';
-    
-    // Kerakli va mavjud miqdorlarni solishtirish
-    final requiredQty = double.tryParse(requiredQuantity.toString()) ?? 0;
-    final availableQty = double.tryParse(availableQuantity) ?? 0;
-    final isShortage = availableQty < requiredQty;
-    final isCritical = availableQty < requiredQty * 0.5;
+    final materialName = requiredMaterial['materialName'] ?? '';
+    final materialUnit = requiredMaterial['unit'] ?? 'дона';
+    final requiredQuantity = requiredMaterial['quantity'] ?? 0;
+    final requiredSize = requiredMaterial['size'] ?? '';
     
     return Container(
       decoration: BoxDecoration(
-        color: isCritical 
-            ? Colors.red.shade50 
-            : (isShortage ? Colors.orange.shade50 : Colors.green.shade50),
-        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
+        color: index % 2 == 0 ? Colors.grey.shade50 : Colors.white,
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         child: Row(
           children: [
-            // Material nomi - o'zgartirib bo'lmaydi
+            // Material name - EDITABLE
             Expanded(
               flex: 4,
-              child: Container(
-                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(4),
-                  color: Colors.grey.shade100,
+              child: TextFormField(
+                initialValue: materialName,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  hintText: 'Материал номини киритинг',
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
-                child: Text(
-                  materialName ?? 'Номаълум',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
+                onChanged: (value) {
+                  setState(() {
+                    _building.requiredMaterials[index]['materialName'] = value;
+                    // Update available material name too
+                    final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+                    if (availableIndex >= 0) {
+                      _building.availableMaterials[availableIndex]['materialName'] = value;
+                    }
+                  });
+                },
               ),
             ),
-            SizedBox(width: 8),
+            SizedBox(width: 6),
             
-            // O'lcham - o'zgartirib bo'lmaydi
+            // Size - EDITABLE
             Expanded(
               flex: 2,
-              child: Container(
-                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(4),
-                  color: Colors.grey.shade100,
+              child: TextFormField(
+                initialValue: requiredSize.toString(),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  hintText: 'Ўлчам',
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
-                child: Text(size.toString()),
+                onChanged: (value) {
+                  setState(() {
+                    _building.requiredMaterials[index]['size'] = value;
+                    // Update available material size too
+                    final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+                    if (availableIndex >= 0) {
+                      _building.availableMaterials[availableIndex]['size'] = value;
+                    }
+                  });
+                },
               ),
             ),
-            SizedBox(width: 8),
+            SizedBox(width: 6),
             
-            // Kerakli miqdor - o'zgartirib bo'lmaydi
+            // Required quantity - EDITABLE
             Expanded(
               flex: 2,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
-                        color: Colors.grey.shade100,
-                      ),
-                      child: Text(requiredQuantity.toString()),
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      materialUnit ?? 'дона',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                    ),
-                  ),
-                ],
+              child: TextFormField(
+                initialValue: requiredQuantity.toString(),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  hintText: '0',
+                  filled: true,
+                  fillColor: Colors.red.shade50,
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                onChanged: (value) {
+                  setState(() {
+                    _building.requiredMaterials[index]['quantity'] = double.tryParse(value) ?? 0;
+                  });
+                },
               ),
             ),
-            SizedBox(width: 8),
+            SizedBox(width: 6),
             
-            // Mavjud miqdor - o'zgartirish mumkin
+            // Available quantity - EDITABLE
             Expanded(
               flex: 2,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: index < _availableQuantityControllers.length 
-                          ? _availableQuantityControllers[index] 
-                          : TextEditingController(text: '0'),
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                        border: OutlineInputBorder(),
-                        fillColor: isShortage ? Colors.red.shade50 : Colors.white,
-                        filled: isShortage,
-                      ),
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      materialUnit ?? 'дона',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                    ),
-                  ),
-                ],
+              child: TextFormField(
+                controller: index < _availableQuantityControllers.length 
+                    ? _availableQuantityControllers[index] 
+                    : TextEditingController(text: '0'),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  hintText: '0',
+                  filled: true,
+                  fillColor: Colors.green.shade50,
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+            SizedBox(width: 6),
+            
+            // Delete button
+            SizedBox(
+              width: 50,
+              child: IconButton(
+                onPressed: () => _confirmDeleteMaterial(index),
+                icon: Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                tooltip: 'Материални ўчириш',
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.red.shade50,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  // void _addNewMaterialRow() {
+  //   setState(() {
+  //     final newMaterialId = DateTime.now().millisecondsSinceEpoch.toString();
+      
+  //     // Add new required material
+  //     _building.requiredMaterials.add({
+  //       'materialId': newMaterialId,
+  //       'materialName': '',
+  //       'quantity': 0,
+  //       'unit': 'дона',
+  //       'size': '',
+  //     });
+      
+  //     // Add new available material
+  //     _building.availableMaterials.add({
+  //       'materialId': newMaterialId,
+  //       'materialName': '',
+  //       'quantity': 0,
+  //       'unit': 'дона',
+  //       'size': '',
+  //       'addedAt': DateTime.now().toIso8601String(),
+  //     });
+      
+  //     // Add new controllers
+  //     _availableQuantityControllers.add(TextEditingController(text: '0'));
+  //     _availableSizeControllers.add(TextEditingController());
+  //   });
+    
+  //   _showSuccessSnackBar('Янги материал қўшилди');
+  // }
+
+  void _confirmDeleteMaterial(int index) {
+    if (index >= _building.requiredMaterials.length) return;
+    
+    final materialName = _building.requiredMaterials[index]['materialName'] ?? 'Номаълум';
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Материални ўчириш'),
+          ],
+        ),
+        content: Text(
+          '"$materialName" материалини ўчиришни хохлайсизми?\n\n'
+          'Бу амал орқага қайтарилмайди.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Бекор қилиш'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _deleteMaterialRow(index);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Ўчириш', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteMaterialRow(int index) {
+    setState(() {
+      final materialId = _building.requiredMaterials[index]['materialId'];
+      
+      // Remove from required materials
+      _building.requiredMaterials.removeAt(index);
+      
+      // Remove from available materials
+      _building.availableMaterials.removeWhere((m) => m['materialId'] == materialId);
+      
+      // Remove controllers safely
+      if (index < _availableQuantityControllers.length) {
+        _availableQuantityControllers[index].dispose();
+        _availableQuantityControllers.removeAt(index);
+      }
+      if (index < _availableSizeControllers.length) {
+        _availableSizeControllers[index].dispose();
+        _availableSizeControllers.removeAt(index);
+      }
+    });
+    
+    _showSuccessSnackBar('Материал ўчирилди');
   }
 
   Widget _buildReadOnlyMaterialTable() {
@@ -2186,6 +2279,196 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             );
           }),
         ],
+      ),
+    );
+  }
+
+  void _addNewMaterialRow() {
+    setState(() {
+      final newMaterialId = DateTime.now().millisecondsSinceEpoch.toString();
+      
+      // Add new required material
+      _building.requiredMaterials.add({
+        'materialId': newMaterialId,
+        'materialName': '',
+        'quantity': 0,
+        'unit': 'дона',
+        'size': '',
+      });
+      
+      // Add new available material
+      _building.availableMaterials.add({
+        'materialId': newMaterialId,
+        'materialName': '',
+        'quantity': 0,
+        'unit': 'дона',
+        'size': '',
+        'addedAt': DateTime.now().toIso8601String(),
+      });
+      
+      // Add new controllers
+      _availableQuantityControllers.add(TextEditingController(text: '0'));
+      _availableSizeControllers.add(TextEditingController());
+    });
+  }
+
+  void _removeMaterialRow(int index) {
+    if (index >= _building.requiredMaterials.length) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Материални ўчириш'),
+        content: Text('Ушбу материални ўчиришни хохлайсизми?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Бекор қилиш'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                final materialId = _building.requiredMaterials[index]['materialId'];
+                
+                // Remove from required materials
+                _building.requiredMaterials.removeAt(index);
+                
+                // Remove from available materials
+                _building.availableMaterials.removeWhere((m) => m['materialId'] == materialId);
+                
+                // Remove controllers safely
+                if (index < _availableQuantityControllers.length) {
+                  _availableQuantityControllers[index].dispose();
+                  _availableQuantityControllers.removeAt(index);
+                }
+                if (index < _availableSizeControllers.length) {
+                  _availableSizeControllers[index].dispose();
+                  _availableSizeControllers.removeAt(index);
+                }
+              });
+              Navigator.pop(context);
+              _showSuccessSnackBar('Материал ўчирилди');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Ўчириш', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMaterialRowEditable(int index) {
+    final requiredMaterial = _building.requiredMaterials[index];
+    final materialId = requiredMaterial['materialId'];
+    final materialName = requiredMaterial['materialName'] ?? '';
+    final materialUnit = requiredMaterial['unit'] ?? 'дона';
+    final requiredQuantity = requiredMaterial['quantity'] ?? 0;
+    final requiredSize = requiredMaterial['size'] ?? '';
+    
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Colors.grey.shade300),
+          right: BorderSide(color: Colors.grey.shade300),
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: Row(
+          children: [
+            // Material name - editable
+            Expanded(
+              flex: 4,
+              child: TextFormField(
+                initialValue: materialName,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  hintText: 'Материал номи',
+                ),
+                onChanged: (value) {
+                  _building.requiredMaterials[index]['materialName'] = value;
+                  // Update available material name too
+                  final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+                  if (availableIndex >= 0) {
+                    _building.availableMaterials[availableIndex]['materialName'] = value;
+                  }
+                },
+              ),
+            ),
+            SizedBox(width: 4),
+            
+            // Size - editable
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                initialValue: requiredSize.toString(),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  hintText: 'Ўлчам',
+                ),
+                onChanged: (value) {
+                  _building.requiredMaterials[index]['size'] = value;
+                  // Update available material size too
+                  final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+                  if (availableIndex >= 0) {
+                    _building.availableMaterials[availableIndex]['size'] = value;
+                  }
+                },
+              ),
+            ),
+            SizedBox(width: 4),
+            
+            // Required quantity - editable
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                initialValue: requiredQuantity.toString(),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  hintText: '0',
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                onChanged: (value) {
+                  _building.requiredMaterials[index]['quantity'] = double.tryParse(value) ?? 0;
+                },
+              ),
+            ),
+            SizedBox(width: 4),
+            
+            // Available quantity
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                controller: index < _availableQuantityControllers.length 
+                    ? _availableQuantityControllers[index] 
+                    : TextEditingController(text: '0'),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  hintText: '0',
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+            SizedBox(width: 4),
+            
+            // Delete button
+            SizedBox(
+              width: 40,
+              child: IconButton(
+                onPressed: () => _removeMaterialRow(index),
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                tooltip: 'Ўчириш',
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

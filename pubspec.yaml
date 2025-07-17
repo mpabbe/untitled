@@ -36,7 +36,7 @@ dependencies:
 
   # Image handling
   image_picker: ^1.0.4
-  file_picker: ^8.1.4  # or latest version
+  file_picker: ^8.1.4  
 
   # UI
   cupertino_icons: ^1.0.2
