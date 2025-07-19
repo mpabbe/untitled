@@ -26,4 +26,4 @@ System Requirements:
 - Windows 10 or later
 - Visual C++ Redistributable (usually pre-installed)
 
-Generated: 2025-07-17 07:35:45
+Generated: 2025-07-19 23:50:22

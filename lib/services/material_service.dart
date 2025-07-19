@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/building.dart';
 import '../models/material_item.dart';
 
 class MaterialService {
@@ -282,7 +283,27 @@ class MaterialService {
     // _lastMaterialsFetch = null;
     // _lastBuildersFetch = null;
   }
+
+  // Get all buildings with caching
+  Future<List<Building>> getBuildings({bool forceRefresh = false}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('buildings')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final buildings = snapshot.docs
+          .map((doc) => Building.fromDocumentSnapshot(doc))
+          .toList();
+
+      return buildings;
+    } catch (e) {
+      print('Error getting buildings: $e');
+      return [];
+    }
+  }
 }
+
 
 
 

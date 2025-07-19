@@ -1,5 +1,3 @@
-/// ------------------
-
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,8 +7,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/building.dart';
 import '../services/firebase_service.dart';
+import '../services/auth_service.dart';
 import 'add_building_screen.dart';
 import 'building_detail_screen.dart';
+import 'login_screen.dart';
+import 'verifier_building_detail_screen.dart';
+import 'verifier_management_screen.dart';
+import 'builder_report_screen.dart';
+import 'admin_change_history_screen.dart';
 import 'package:geoxml/geoxml.dart';
 import '../services/material_service.dart';
 
@@ -27,9 +31,9 @@ class _MapScreenState extends State<MapScreen> {
   List<Building> _buildings = [];
   List<Building> _filteredBuildings = [];
   List<Building> _searchResults = [];
-  List<String> _verifiers = [];
-  String? _selectedVerifier;
-  bool _isLoadingVerifiers = true;
+  List<String> _builders = []; // _verifiers o'rniga
+  String _selectedBuilder = 'Барчаси'; // _selectedVerifier o'rniga
+  bool _isLoading = true;
   
   List<LatLng> _kmlPolylinePoints = [];
   List<Polyline> _polylines = [];
@@ -50,8 +54,7 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     print('MapScreen initState started'); // Debug
-    _loadBuildings();
-    _loadVerifiers();
+    _loadData();
     _getCurrentLocation();
     _loadKml();
 
@@ -64,60 +67,38 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  Future<void> _loadVerifiers() async {
-    print('Loading verifiers started'); // Debug
-    setState(() => _isLoadingVerifiers = true);
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
     
     try {
-      print('Calling MaterialService.getVerifiers()...'); // Debug
-      final verifiers = await _materialService.getVerifiers(forceRefresh: true);
-      print('Received verifiers from service: $verifiers'); // Debug
+      final buildings = await FirebaseService.getBuildings().first;
+      final builders = await MaterialService().getBuilders(); // getVerifiers o'rniga
       
       setState(() {
-        _verifiers = ['Барчаси', ...verifiers];
-        _selectedVerifier = 'Барчаси';
-        _isLoadingVerifiers = false;
+        _buildings = buildings;
+        _filteredBuildings = buildings;
+        _builders = ['Барчаси', ...builders]; // _verifiers o'rniga
+        _isLoading = false;
       });
-      print('Final verifiers state: $_verifiers'); // Debug
     } catch (e) {
-      print('Error loading verifiers: $e'); // Debug
-      setState(() {
-        _verifiers = ['Барчаси', 'Мансур ака', 'Нурназар Равшанов', 'Кобил ака']; // Fallback
-        _selectedVerifier = 'Барчаси';
-        _isLoadingVerifiers = false;
-      });
-      print('Set fallback verifiers: $_verifiers'); // Debug
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Маълумотларни юклашда хатолик: $e')),
+      );
     }
   }
 
-  void _loadBuildings() {
-    FirebaseService.getBuildings().listen((buildings) {
-      setState(() {
-        _buildings = buildings;
-        _filterBuildingsByVerifier(_selectedVerifier);
-      });
-    });
-  }
-
-  void _filterBuildingsByVerifier(String? verifier) {
-    print('Filtering by verifier: $verifier'); // Debug
-    print('Total buildings: ${_buildings.length}'); // Debug
-    
+  void _filterBuildingsByBuilder(String? builder) { // _filterBuildingsByVerifier o'rniga
     setState(() {
-      _selectedVerifier = verifier;
-      if (verifier == null || verifier == 'Барчаси') {
+      _selectedBuilder = builder ?? 'Барчаси';
+      
+      if (_selectedBuilder == 'Барчаси') {
         _filteredBuildings = _buildings;
-        print('Showing all buildings: ${_filteredBuildings.length}'); // Debug
       } else {
-        _filteredBuildings = _buildings
-            .where((building) => building.verificationPerson == verifier)
-            .toList();
-        print('Filtered buildings for $verifier: ${_filteredBuildings.length}'); // Debug
-        
-        // Debug: har bir binoning verificationPerson'ini ko'rsatish
-        for (final building in _buildings) {
-          print('Building ${building.uniqueName}: verifier = ${building.verificationPerson}');
-        }
+        _filteredBuildings = _buildings.where((building) {
+          return building.builders != null && 
+                 building.builders!.contains(_selectedBuilder);
+        }).toList();
       }
     });
   }
@@ -257,7 +238,7 @@ class _MapScreenState extends State<MapScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: _getStatusColor(building.status), width: 2),
                 color: Colors.white,
-                boxShadow: [
+                boxShadow: const [
                   BoxShadow(
                     color: Colors.black26,
                     blurRadius: 3,
@@ -267,14 +248,14 @@ class _MapScreenState extends State<MapScreen> {
               ),
               child: _buildStatusIcon(building.status),
             ),
-            SizedBox(width: 6),
+            const SizedBox(width: 6),
             Flexible(
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(6),
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 3,
@@ -284,7 +265,7 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 child: Text(
                   building.uniqueName,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -379,6 +360,53 @@ class _MapScreenState extends State<MapScreen> {
     final isWindows = Platform.isWindows;
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text('Колодец Харитаси'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        actions: [
+          // Change History button (faqat admin uchun)
+          if (AuthService.currentUserType == 'admin')
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => AdminChangeHistoryScreen()),
+              ),
+              icon: Icon(Icons.history),
+              tooltip: 'Ўзгариш тарихи',
+            ),
+          // Verifier management
+          if (AuthService.currentUserType == 'admin')
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => VerifierManagementScreen()),
+              ),
+              icon: Icon(Icons.people),
+              tooltip: 'Тасдиқловчилар',
+            ),
+          // Builder report
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => BuilderReportScreen()),
+            ),
+            icon: Icon(Icons.assessment),
+            tooltip: 'Ҳисобот',
+          ),
+          // Logout
+          IconButton(
+            onPressed: () {
+              AuthService.logout();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => LoginScreen()),
+              );
+            },
+            icon: Icon(Icons.logout),
+          ),
+        ],
+      ),
       backgroundColor: Colors.grey.shade50,
       body: Row(
         children: [
@@ -397,8 +425,8 @@ class _MapScreenState extends State<MapScreen> {
                     // O'zbekiston chegaralari
                     cameraConstraint: CameraConstraint.contain(
                       bounds: LatLngBounds(
-                        LatLng(37.0, 55.0), // South-West (Janubiy-G'arbiy)
-                        LatLng(45.7, 73.2), // North-East (Shimoliy-Sharqiy)
+                        const LatLng(37.0, 55.0),
+                        const LatLng(45.7, 73.2),
                       ),
                     ),
                     onLongPress: (tapPosition, point) {
@@ -596,7 +624,7 @@ class _MapScreenState extends State<MapScreen> {
                                   ),
                                 ],
                               ),
-                              child: _isLoadingVerifiers
+                              child: _isLoading
                                   ? Container(
                                       height: 56,
                                       child: Center(
@@ -614,7 +642,7 @@ class _MapScreenState extends State<MapScreen> {
                                         ),
                                       ),
                                     )
-                                  : _verifiers.isEmpty
+                                  : _builders.isEmpty
                                       ? Container(
                                           height: 56,
                                           child: Center(
@@ -627,56 +655,56 @@ class _MapScreenState extends State<MapScreen> {
                                             ),
                                           ),
                                         )
-                                      : DropdownButtonFormField<String>(
-                                          value: _selectedVerifier,
-                                          decoration: InputDecoration(
-                                            labelText: 'Тасдиқловчи (${_verifiers.length})', // Count ko'rsatish
-                                            labelStyle: TextStyle(fontSize: 12),
-                                            prefixIcon: Container(
-                                              margin: EdgeInsets.all(12),
-                                              decoration: BoxDecoration(
-                                                color: Colors.green.shade50,
+                                      : Container(
+                                          width: double.infinity,
+                                          child: DropdownButtonFormField<String>(
+                                            value: _selectedBuilder,
+                                            decoration: InputDecoration(
+                                              labelText: 'Қурувчи',
+                                              prefixIcon: Icon(Icons.construction, color: Colors.blue, size: 18),
+                                              border: OutlineInputBorder(
                                                 borderRadius: BorderRadius.circular(8),
                                               ),
-                                              child: Icon(Icons.person_search, color: Colors.green.shade600, size: 18),
+                                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                              labelStyle: TextStyle(fontSize: 12),
                                             ),
-                                            border: InputBorder.none,
-                                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                          ),
-                                          items: _verifiers.map((verifier) {
-                                            // Har bir tasdiqlovchi uchun binolar sonini hisoblash
-                                            final buildingCount = verifier == 'Барчаси' 
-                                                ? _buildings.length
-                                                : _buildings.where((b) => b.verificationPerson == verifier).length;
-                                            
-                                            return DropdownMenuItem(
-                                              value: verifier,
-                                              child: Row(
-                                                children: [
-                                                  if (verifier == 'Барчаси')
-                                                    Icon(Icons.all_inclusive, size: 14, color: Colors.green)
-                                                  else
-                                                    Icon(Icons.person, size: 14, color: Colors.blue),
-                                                  SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: Text(
-                                                      '$verifier ($buildingCount)',
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: TextStyle(fontSize: 12),
+                                            items: _builders.map((builder) {
+                                              // Har bir qурувчи uchun binolar sonini hisoblash
+                                              final buildingCount = builder == 'Барчаси' 
+                                                  ? _buildings.length
+                                                  : _buildings.where((b) => 
+                                                      b.builders != null && b.builders!.contains(builder)
+                                                    ).length;
+                                              
+                                              return DropdownMenuItem(
+                                                value: builder,
+                                                child: Row(
+                                                  children: [
+                                                    if (builder == 'Барчаси')
+                                                      Icon(Icons.all_inclusive, size: 14, color: Colors.green)
+                                                    else
+                                                      Icon(Icons.construction, size: 14, color: Colors.blue),
+                                                    SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        '$builder ($buildingCount)',
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: TextStyle(fontSize: 12),
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }).toList(),
-                                          onChanged: (value) {
-                                            print('Selected verifier: $value'); // Debug
-                                            _filterBuildingsByVerifier(value);
-                                          },
-                                          style: TextStyle(fontSize: 12, color: Colors.black),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                            onChanged: (value) {
+                                              print('Selected builder: $value'); // Debug
+                                              _filterBuildingsByBuilder(value);
+                                            },
+                                            style: TextStyle(fontSize: 12, color: Colors.black),
+                                          ),
                                         ),
                             ),
-                          ),
+                          )
                         ],
                       ),
                       
@@ -747,23 +775,36 @@ class _MapScreenState extends State<MapScreen> {
 
                 // Action buttons
                 Positioned(
-                  top: 200,
+                  top: 140,
                   right: 20,
                   child: Column(
                     children: [
+                      _buildActionButton(
+                        icon: Icons.people,
+                        tooltip: 'Тасдиқловчилар бошқаруви',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => VerifierManagementScreen()),
+                        ),
+                        color: Colors.purple,
+                      ),
+                      SizedBox(height: 8),
+                      _buildActionButton(
+                        icon: Icons.analytics,
+                        tooltip: 'Қурувчилар ҳисоботи',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => BuilderReportScreen()),
+                        ),
+                        color: Colors.purple,
+                      ),
+                      SizedBox(height: 8),
                       _buildActionButton(
                         icon: Icons.explore,
                         tooltip: 'Харитани текислаш',
                         onPressed: _resetMapOrientation,
                         color: Colors.blue,
                       ),
-                      // SizedBox(height: 8),
-                      // _buildActionButton(
-                      //   icon: Icons.my_location,
-                      //   tooltip: 'Менинг жойим',
-                      //   onPressed: _getCurrentLocation,
-                      //   color: Colors.green,
-                      // ),
                     ],
                   ),
                 ),
@@ -789,13 +830,13 @@ class _MapScreenState extends State<MapScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (_selectedVerifier != null && _selectedVerifier != 'Барчаси') ...[
+                        if (_selectedBuilder != null && _selectedBuilder != 'Барчаси') ...[
                           Row(
                             children: [
                               Icon(Icons.person, color: Colors.blue, size: 16),
                               SizedBox(width: 6),
                               Text(
-                                _selectedVerifier!,
+                                _selectedBuilder!,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.blue,

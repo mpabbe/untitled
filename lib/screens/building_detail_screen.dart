@@ -596,102 +596,277 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: isMobile ? Axis.horizontal : Axis.vertical,
-      child: DataTable(
-        columnSpacing: isMobile ? 16 : 24,
-        dataRowHeight: isMobile ? 48 : 56,
-        headingRowHeight: isMobile ? 48 : 56,
-        columns: [
-          DataColumn(
-            label: Text(
-              'Материал',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: isMobile ? 12 : 14,
-              ),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Ўлчам',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: isMobile ? 12 : 14,
-              ),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Сони',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: isMobile ? 12 : 14,
-              ),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Ҳолат',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: isMobile ? 12 : 14,
-              ),
-            ),
-          ),
-        ],
-        rows: _building.requiredMaterials.map<DataRow>((material) {
-          final materialName = material['materialName'] ?? 'Номсиз';
-          final materialSize = material['size'] ?? '';
-          final materialQuantity = material['quantity'] ?? 0;
-          final materialUnit = material['unit'] ?? 'дона';
-          
-          return DataRow(
-            cells: [
-              DataCell(
-                Text(
-                  materialName,
-                  style: TextStyle(fontSize: isMobile ? 12 : 14),
-                ),
-              ),
-              DataCell(
-                Text(
-                  materialSize,
-                  style: TextStyle(fontSize: isMobile ? 12 : 14),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '$materialQuantity $materialUnit',
-                  style: TextStyle(fontSize: isMobile ? 12 : 14),
-                ),
-              ),
-              DataCell(
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 6 : 8,
-                    vertical: isMobile ? 2 : 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Керак',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: isMobile ? 10 : 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
-    );
+    return _buildExcelStyleMaterialTable();
   }
+
+  // Widget _buildExcelStyleMaterialTable() {
+  //   return Column(
+  //     children: [
+  //       // Header
+  //       Container(
+  //         decoration: BoxDecoration(
+  //           color: Colors.blue.shade50,
+  //           border: Border.all(color: Colors.blue.shade200),
+  //           borderRadius: BorderRadius.only(
+  //             topLeft: Radius.circular(8),
+  //             topRight: Radius.circular(8),
+  //           ),
+  //         ),
+  //         child: Padding(
+  //           padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+  //           child: Row(
+  //             children: [
+  //               Expanded(flex: 4, child: Text('Материал номи', style: TextStyle(fontWeight: FontWeight.bold))),
+  //               Expanded(flex: 2, child: Text('Ўлчам', style: TextStyle(fontWeight: FontWeight.bold))),
+  //               Expanded(flex: 2, child: Text('Керакли', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
+  //               Expanded(flex: 2, child: Text('Мавжуд', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green))),
+  //               Expanded(flex: 2, child: Text('Мавжудлиги', style: TextStyle(fontWeight: FontWeight.bold))),
+  //               if (_isEditing) SizedBox(width: 50, child: Text('Амал', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+        
+  //       // Material rows
+  //       Container(
+  //         decoration: BoxDecoration(
+  //           border: Border.all(color: Colors.grey.shade300),
+  //           borderRadius: BorderRadius.only(
+  //             bottomLeft: Radius.circular(8),
+  //             bottomRight: Radius.circular(8),
+  //           ),
+  //         ),
+  //         child: Column(
+  //           children: [
+  //             ...List.generate(_building.requiredMaterials.length, (index) {
+  //               return _buildEditableMaterialRow(index);
+  //             }),
+              
+  //             // Add new material button - only in edit mode
+  //             if (_isEditing)
+  //               Container(
+  //                 width: double.infinity,
+  //                 margin: EdgeInsets.all(8),
+  //                 child: OutlinedButton.icon(
+  //                   onPressed: _addNewMaterialRow,
+  //                   icon: Icon(Icons.add, color: Colors.blue),
+  //                   label: Text('Янги материал қўшиш', style: TextStyle(color: Colors.blue)),
+  //                   style: OutlinedButton.styleFrom(
+  //                     side: BorderSide(color: Colors.blue),
+  //                     padding: EdgeInsets.symmetric(vertical: 12),
+  //                   ),
+  //                 ),
+  //               ),
+  //           ],
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
+
+  // Widget _buildEditableMaterialRow(int index) {
+  //   final requiredMaterial = _building.requiredMaterials[index];
+  //   final materialId = requiredMaterial['materialId'];
+  //   final materialName = requiredMaterial['materialName'] ?? '';
+  //   final materialUnit = requiredMaterial['unit'] ?? 'дона';
+  //   final requiredQuantity = requiredMaterial['quantity'] ?? 0;
+  //   final requiredSize = requiredMaterial['size'] ?? '';
+    
+  //   // Calculate availability status
+  //   final availableQuantity = index < _availableQuantityControllers.length 
+  //       ? double.tryParse(_availableQuantityControllers[index].text) ?? 0
+  //       : 0;
+  //   final requiredQty = double.tryParse(requiredQuantity.toString()) ?? 0;
+    
+  //   String availabilityStatus;
+  //   Color availabilityColor;
+    
+  //   if (availableQuantity >= requiredQty) {
+  //     availabilityStatus = 'Етарли';
+  //     availabilityColor = Colors.green;
+  //   } else if (availableQuantity > 0) {
+  //     availabilityStatus = 'Камчилик';
+  //     availabilityColor = Colors.orange;
+  //   } else {
+  //     availabilityStatus = 'Йўқ';
+  //     availabilityColor = Colors.red;
+  //   }
+    
+  //   return Container(
+  //     decoration: BoxDecoration(
+  //       border: Border(
+  //         bottom: BorderSide(color: Colors.grey.shade300),
+  //       ),
+  //       color: index % 2 == 0 ? Colors.grey.shade50 : Colors.white,
+  //     ),
+  //     child: Padding(
+  //       padding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+  //       child: Row(
+  //         children: [
+  //           // Material name - EDITABLE
+  //           Expanded(
+  //             flex: 4,
+  //             child: _isEditing 
+  //               ? TextFormField(
+  //                   initialValue: materialName,
+  //                   decoration: InputDecoration(
+  //                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+  //                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+  //                     hintText: 'Материал номини киритинг',
+  //                     filled: true,
+  //                     fillColor: Colors.white,
+  //                   ),
+  //                   onChanged: (value) {
+  //                     setState(() {
+  //                       _building.requiredMaterials[index]['materialName'] = value;
+  //                       // Update available material name too
+  //                       final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+  //                       if (availableIndex >= 0) {
+  //                         _building.availableMaterials[availableIndex]['materialName'] = value;
+  //                       }
+  //                     });
+  //                   },
+  //                 )
+  //               : Text(materialName),
+  //           ),
+  //           SizedBox(width: 6),
+            
+  //           // Size - EDITABLE
+  //           Expanded(
+  //             flex: 2,
+  //             child: _isEditing 
+  //               ? TextFormField(
+  //                   initialValue: requiredSize.toString(),
+  //                   decoration: InputDecoration(
+  //                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+  //                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+  //                     hintText: 'Ўлчам',
+  //                     filled: true,
+  //                     fillColor: Colors.white,
+  //                   ),
+  //                   onChanged: (value) {
+  //                     setState(() {
+  //                       _building.requiredMaterials[index]['size'] = value;
+  //                       // Update available material size too
+  //                       final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+  //                       if (availableIndex >= 0) {
+  //                         _building.availableMaterials[availableIndex]['size'] = value;
+  //                       }
+  //                       // Update controller too
+  //                       if (index < _availableSizeControllers.length) {
+  //                         _availableSizeControllers[index].text = value;
+  //                       }
+  //                     });
+  //                   },
+  //                 )
+  //               : Text(requiredSize.toString()),
+  //           ),
+  //           SizedBox(width: 6),
+            
+  //           // Required quantity - EDITABLE
+  //           Expanded(
+  //             flex: 2,
+  //             child: _isEditing 
+  //               ? TextFormField(
+  //                   initialValue: requiredQuantity.toString(),
+  //                   decoration: InputDecoration(
+  //                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+  //                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+  //                     hintText: '0',
+  //                     filled: true,
+  //                     fillColor: Colors.red.shade50,
+  //                   ),
+  //                   keyboardType: TextInputType.numberWithOptions(decimal: true),
+  //                   onChanged: (value) {
+  //                     setState(() {
+  //                       _building.requiredMaterials[index]['quantity'] = double.tryParse(value) ?? 0;
+  //                     });
+  //                   },
+  //                 )
+  //               : Row(
+  //                   children: [
+  //                     Text(requiredQuantity.toString()),
+  //                     SizedBox(width: 4),
+  //                     Text(
+  //                       materialUnit,
+  //                       style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+  //                     ),
+  //                   ],
+  //                 ),
+  //           ),
+  //           SizedBox(width: 6),
+            
+  //           // Available quantity - EDITABLE
+  //           Expanded(
+  //             flex: 2,
+  //             child: _isEditing 
+  //               ? TextFormField(
+  //                   controller: index < _availableQuantityControllers.length 
+  //                       ? _availableQuantityControllers[index] 
+  //                       : TextEditingController(text: '0'),
+  //                   decoration: InputDecoration(
+  //                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+  //                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+  //                     hintText: '0',
+  //                     filled: true,
+  //                     fillColor: Colors.green.shade50,
+  //                   ),
+  //                   keyboardType: TextInputType.numberWithOptions(decimal: true),
+  //                   onChanged: (value) => setState(() {}), // Refresh availability status
+  //                 )
+  //               : Row(
+  //                   children: [
+  //                     Text(availableQuantity.toString()),
+  //                     SizedBox(width: 4),
+  //                     Text(
+  //                       materialUnit,
+  //                       style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+  //                     ),
+  //                   ],
+  //                 ),
+  //           ),
+  //           SizedBox(width: 6),
+            
+  //           // Availability status
+  //           Expanded(
+  //             flex: 2,
+  //             child: Container(
+  //               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //               decoration: BoxDecoration(
+  //                 color: availabilityColor.withOpacity(0.1),
+  //                 borderRadius: BorderRadius.circular(12),
+  //                 border: Border.all(color: availabilityColor.withOpacity(0.3)),
+  //               ),
+  //               child: Text(
+  //                 availabilityStatus,
+  //                 style: TextStyle(
+  //                   color: availabilityColor,
+  //                   fontSize: 12,
+  //                   fontWeight: FontWeight.bold,
+  //                 ),
+  //                 textAlign: TextAlign.center,
+  //               ),
+  //             ),
+  //           ),
+  //           SizedBox(width: 6),
+            
+  //           // Delete button - only in edit mode
+  //           if (_isEditing) 
+  //             SizedBox(
+  //               width: 40,
+  //               child: IconButton(
+  //                 onPressed: () => _confirmDeleteMaterial(index),
+  //                 icon: Icon(Icons.delete, color: Colors.red, size: 20),
+  //                 padding: EdgeInsets.zero,
+  //                 constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+  //                 tooltip: 'Ўчириш',
+  //               ),
+  //             ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildSchemeSection(bool isMobile) {
     return Container(
@@ -1883,7 +2058,8 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                 Expanded(flex: 2, child: Text('Ўлчам', style: TextStyle(fontWeight: FontWeight.bold))),
                 Expanded(flex: 2, child: Text('Керакли', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
                 Expanded(flex: 2, child: Text('Мавжуд', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green))),
-                SizedBox(width: 50, child: Text('Амал', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
+                Expanded(flex: 2, child: Text('Мавжудлиги', style: TextStyle(fontWeight: FontWeight.bold))),
+                if (_isEditing) SizedBox(width: 50, child: Text('Амал', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
               ],
             ),
           ),
@@ -1904,20 +2080,21 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                 return _buildEditableMaterialRow(index);
               }),
               
-              // Add new material button
-              Container(
-                width: double.infinity,
-                margin: EdgeInsets.all(8),
-                child: OutlinedButton.icon(
-                  onPressed: _addNewMaterialRow,
-                  icon: Icon(Icons.add, color: Colors.blue),
-                  label: Text('Янги материал қўшиш', style: TextStyle(color: Colors.blue)),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.blue),
-                    padding: EdgeInsets.symmetric(vertical: 12),
+              // Add new material button - only in edit mode
+              if (_isEditing)
+                Container(
+                  width: double.infinity,
+                  margin: EdgeInsets.all(8),
+                  child: OutlinedButton.icon(
+                    onPressed: _addNewMaterialRow,
+                    icon: Icon(Icons.add, color: Colors.blue),
+                    label: Text('Янги материал қўшиш', style: TextStyle(color: Colors.blue)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.blue),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -1933,6 +2110,26 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
     final requiredQuantity = requiredMaterial['quantity'] ?? 0;
     final requiredSize = requiredMaterial['size'] ?? '';
     
+    // Calculate availability status
+    final availableQuantity = index < _availableQuantityControllers.length 
+        ? double.tryParse(_availableQuantityControllers[index].text) ?? 0
+        : 0;
+    final requiredQty = double.tryParse(requiredQuantity.toString()) ?? 0;
+    
+    String availabilityStatus;
+    Color availabilityColor;
+    
+    if (availableQuantity >= requiredQty) {
+      availabilityStatus = 'Етарли';
+      availabilityColor = Colors.green;
+    } else if (availableQuantity > 0) {
+      availabilityStatus = 'Камчилик';
+      availabilityColor = Colors.orange;
+    } else {
+      availabilityStatus = 'Йўқ';
+      availabilityColor = Colors.red;
+    }
+    
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -1947,109 +2144,162 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             // Material name - EDITABLE
             Expanded(
               flex: 4,
-              child: TextFormField(
-                initialValue: materialName,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  hintText: 'Материал номини киритинг',
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _building.requiredMaterials[index]['materialName'] = value;
-                    // Update available material name too
-                    final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
-                    if (availableIndex >= 0) {
-                      _building.availableMaterials[availableIndex]['materialName'] = value;
-                    }
-                  });
-                },
-              ),
+              child: _isEditing 
+                ? TextFormField(
+                    initialValue: materialName,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      hintText: 'Материал номини киритинг',
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _building.requiredMaterials[index]['materialName'] = value;
+                        // Update available material name too
+                        final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+                        if (availableIndex >= 0) {
+                          _building.availableMaterials[availableIndex]['materialName'] = value;
+                        }
+                      });
+                    },
+                  )
+                : Text(materialName),
             ),
             SizedBox(width: 6),
             
             // Size - EDITABLE
             Expanded(
               flex: 2,
-              child: TextFormField(
-                initialValue: requiredSize.toString(),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  hintText: 'Ўлчам',
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _building.requiredMaterials[index]['size'] = value;
-                    // Update available material size too
-                    final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
-                    if (availableIndex >= 0) {
-                      _building.availableMaterials[availableIndex]['size'] = value;
-                    }
-                  });
-                },
-              ),
+              child: _isEditing 
+                ? TextFormField(
+                    initialValue: requiredSize.toString(),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      hintText: 'Ўлчам',
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _building.requiredMaterials[index]['size'] = value;
+                        // Update available material size too
+                        final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
+                        if (availableIndex >= 0) {
+                          _building.availableMaterials[availableIndex]['size'] = value;
+                        }
+                        // Update controller too
+                        if (index < _availableSizeControllers.length) {
+                          _availableSizeControllers[index].text = value;
+                        }
+                      });
+                    },
+                  )
+                : Text(requiredSize.toString()),
             ),
             SizedBox(width: 6),
             
             // Required quantity - EDITABLE
             Expanded(
               flex: 2,
-              child: TextFormField(
-                initialValue: requiredQuantity.toString(),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  hintText: '0',
-                  filled: true,
-                  fillColor: Colors.red.shade50,
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                onChanged: (value) {
-                  setState(() {
-                    _building.requiredMaterials[index]['quantity'] = double.tryParse(value) ?? 0;
-                  });
-                },
-              ),
+              child: _isEditing 
+                ? TextFormField(
+                    initialValue: requiredQuantity.toString(),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      hintText: '0',
+                      filled: true,
+                      fillColor: Colors.red.shade50,
+                    ),
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (value) {
+                      setState(() {
+                        _building.requiredMaterials[index]['quantity'] = double.tryParse(value) ?? 0;
+                      });
+                    },
+                  )
+                : Row(
+                    children: [
+                      Text(requiredQuantity.toString()),
+                      SizedBox(width: 4),
+                      Text(
+                        materialUnit,
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
             ),
             SizedBox(width: 6),
             
             // Available quantity - EDITABLE
             Expanded(
               flex: 2,
-              child: TextFormField(
-                controller: index < _availableQuantityControllers.length 
-                    ? _availableQuantityControllers[index] 
-                    : TextEditingController(text: '0'),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  hintText: '0',
-                  filled: true,
-                  fillColor: Colors.green.shade50,
+              child: _isEditing 
+                ? TextFormField(
+                    controller: index < _availableQuantityControllers.length 
+                        ? _availableQuantityControllers[index] 
+                        : TextEditingController(text: '0'),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      hintText: '0',
+                      filled: true,
+                      fillColor: Colors.green.shade50,
+                    ),
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (value) => setState(() {}), // Refresh availability status
+                  )
+                : Row(
+                    children: [
+                      Text(availableQuantity.toString()),
+                      SizedBox(width: 4),
+                      Text(
+                        materialUnit,
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+            ),
+            SizedBox(width: 6),
+            
+            // Availability status
+            Expanded(
+              flex: 2,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: availabilityColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: availabilityColor.withOpacity(0.3)),
                 ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                child: Text(
+                  availabilityStatus,
+                  style: TextStyle(
+                    color: availabilityColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
             SizedBox(width: 6),
             
-            // Delete button
-            SizedBox(
-              width: 50,
-              child: IconButton(
-                onPressed: () => _confirmDeleteMaterial(index),
-                icon: Icon(Icons.delete_outline, color: Colors.red, size: 22),
-                tooltip: 'Материални ўчириш',
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.red.shade50,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            // Delete button - only in edit mode
+            if (_isEditing) 
+              SizedBox(
+                width: 40,
+                child: IconButton(
+                  onPressed: () => _confirmDeleteMaterial(index),
+                  icon: Icon(Icons.delete, color: Colors.red, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                  tooltip: 'Ўчириш',
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -2353,122 +2603,6 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
             child: Text('Ўчириш', style: TextStyle(color: Colors.white)),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMaterialRowEditable(int index) {
-    final requiredMaterial = _building.requiredMaterials[index];
-    final materialId = requiredMaterial['materialId'];
-    final materialName = requiredMaterial['materialName'] ?? '';
-    final materialUnit = requiredMaterial['unit'] ?? 'дона';
-    final requiredQuantity = requiredMaterial['quantity'] ?? 0;
-    final requiredSize = requiredMaterial['size'] ?? '';
-    
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(color: Colors.grey.shade300),
-          right: BorderSide(color: Colors.grey.shade300),
-          bottom: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        child: Row(
-          children: [
-            // Material name - editable
-            Expanded(
-              flex: 4,
-              child: TextFormField(
-                initialValue: materialName,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                  hintText: 'Материал номи',
-                ),
-                onChanged: (value) {
-                  _building.requiredMaterials[index]['materialName'] = value;
-                  // Update available material name too
-                  final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
-                  if (availableIndex >= 0) {
-                    _building.availableMaterials[availableIndex]['materialName'] = value;
-                  }
-                },
-              ),
-            ),
-            SizedBox(width: 4),
-            
-            // Size - editable
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                initialValue: requiredSize.toString(),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                  hintText: 'Ўлчам',
-                ),
-                onChanged: (value) {
-                  _building.requiredMaterials[index]['size'] = value;
-                  // Update available material size too
-                  final availableIndex = _building.availableMaterials.indexWhere((m) => m['materialId'] == materialId);
-                  if (availableIndex >= 0) {
-                    _building.availableMaterials[availableIndex]['size'] = value;
-                  }
-                },
-              ),
-            ),
-            SizedBox(width: 4),
-            
-            // Required quantity - editable
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                initialValue: requiredQuantity.toString(),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                  hintText: '0',
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                onChanged: (value) {
-                  _building.requiredMaterials[index]['quantity'] = double.tryParse(value) ?? 0;
-                },
-              ),
-            ),
-            SizedBox(width: 4),
-            
-            // Available quantity
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                controller: index < _availableQuantityControllers.length 
-                    ? _availableQuantityControllers[index] 
-                    : TextEditingController(text: '0'),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                  hintText: '0',
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-              ),
-            ),
-            SizedBox(width: 4),
-            
-            // Delete button
-            SizedBox(
-              width: 40,
-              child: IconButton(
-                onPressed: () => _removeMaterialRow(index),
-                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                tooltip: 'Ўчириш',
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -469,7 +469,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         longitude: widget.longitude,
         uniqueName: _serialNumberController.text.trim(),
         regionName: _locationNameController.text.trim(),
-        verificationPerson: _selectedVerificationPerson,
+        verificationPerson: null, // Always null when creating
         kolodetsStatus: _selectedKolodetsStatus,
         builders: _selectedBuilders.isNotEmpty ? _selectedBuilders : null,
         schemeUrl: _schemeUrlController.text.trim().isEmpty
@@ -704,16 +704,16 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     value: person,
                     child: Text(person),
                   )),
-                  DropdownMenuItem(
-                    value: 'add_new_verifier',
-                    child: Row(
-                      children: [
-                        Icon(Icons.add, size: 16, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text('Янги тасдиқловчи қўшиш', style: TextStyle(color: Colors.green)),
-                      ],
-                    ),
-                  ),
+                  // DropdownMenuItem(
+                  //   value: 'add_new_verifier',
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.add, size: 16, color: Colors.green),
+                  //       SizedBox(width: 8),
+                  //       Text('Янги тасдиқловчи қўшиш', style: TextStyle(color: Colors.green)),
+                  //     ],
+                  //   ),
+                  // ),
                 ],
               ],
               onChanged: _isLoadingVerifiers ? null : (value) {
@@ -808,9 +808,9 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: (_schemeUrlController.text.trim().isNotEmpty && !_isDetecting)
-                      ? _detectMaterialsFromScheme 
+                      ? _detectMaterialsFromScheme
                       : null,
-                  icon: _isDetecting 
+                  icon: _isDetecting
                       ? SizedBox(
                           width: 18,
                           height: 18,
@@ -829,7 +829,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: !_isDetecting ? _detectMaterialsFromFile : null,
-                  icon: _isDetecting 
+                  icon: _isDetecting
                       ? SizedBox(
                           width: 18,
                           height: 18,
@@ -910,116 +910,30 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                   ),
               ],
             ),
-            
-            SizedBox(height: 16),
-            
-            // Scheme URL input with AI detection
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  // URL input
-                  Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.link, color: Colors.grey),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _schemeUrlController,
-                            decoration: InputDecoration(
-                              hintText: 'Схема URL киритинг...',
-                              border: InputBorder.none,
-                              isDense: true,
-                            ),
-                            onChanged: (value) => setState(() {}),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: (_schemeUrlController.text.trim().isNotEmpty && !_isDetecting)
-                              ? _detectMaterialsFromScheme 
-                              : null,
-                          icon: _isDetecting 
-                              ? SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Icon(Icons.auto_awesome, size: 16),
-                          label: Text(_isDetecting ? 'Ишламоқда...' : 'Аниқлаш'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Divider
-                  Divider(height: 1, color: Colors.grey.shade300),
-                  
-                  // File upload button
-                  Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.upload_file, color: Colors.grey),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Ёки файл танланг',
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: !_isDetecting ? _detectMaterialsFromFile : null,
-                          icon: _isDetecting 
-                              ? SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Icon(Icons.photo_camera, size: 16),
-                          label: Text(_isDetecting ? 'Юкланмоқда...' : 'Файл танлаш'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
+
+            const SizedBox(height: 16),
+
+            // Scheme URL input with AI detectio
+
             // Progress indicator
             if (_isDetecting) ...[
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               _buildProgressIndicator(),
             ],
-            
+
             // Image preview section
             if (_detectedImageUrl != null || _detectedImageFile != null) ...[
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               _buildDetectedImagePreview(),
             ],
-            
-            SizedBox(height: 20),
-            
+
+            const SizedBox(height: 20),
+
             // Quick add buttons for common materials
             _buildQuickAddButtons(),
-            
-            SizedBox(height: 16),
-            
+
+            const SizedBox(height: 16),
+
             // Materials table
             if (_selectedRequiredMaterials.isNotEmpty) ...[
               _buildMaterialsTable(),
@@ -1035,9 +949,9 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   Widget _buildExcelStyleMaterialRow(int index) {
     final materialId = _selectedRequiredMaterials[index];
     final materialUnit = materialId != null ? _getMaterialUnitById(materialId) : 'дона';
-    
+
     // Remove duplicate check completely - allow unlimited duplicates
-    
+
     return Container(
       decoration: BoxDecoration(
         color: index % 2 == 0 ? Colors.grey.shade50 : Colors.white,
@@ -1056,14 +970,14 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     return _materials;
                   }
                   // Allow all materials - no duplicate filtering
-                  final filteredMaterials = _materials.where((material) => 
+                  final filteredMaterials = _materials.where((material) =>
                     material.name.toLowerCase().contains(textEditingValue.text.toLowerCase())
                   ).toList();
                   return filteredMaterials;
                 },
                 displayStringForOption: (MaterialItem option) => option.name,
                 fieldViewBuilder: (context, textEditingController, focusNode, onEditingComplete) {
-                  
+
                   return TextField(
                     controller: textEditingController,
                     focusNode: focusNode,
@@ -1085,14 +999,14 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                   setState(() {
                     _selectedRequiredMaterials[index] = selection.id;
                     _selectedAvailableMaterials[index] = selection.id;
-                    
+
                     // O'lcham va birlikni avtomatik to'ldirish
                     final size = _getMaterialDefaultSize(selection.id);
                     if (size.isNotEmpty) {
                       _requiredSizeControllers[index].text = size;
                       _availableSizeControllers[index].text = size;
                     }
-                    
+
                     // Agar oxirgi qator bo'lsa, yangi qator qo'shish
                     if (index == _selectedRequiredMaterials.length - 1) {
                       _addRequiredMaterial();
@@ -1101,30 +1015,9 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 },
               ),
             ),
-            
+
             SizedBox(width: 8),
-            
-            // Kerakli miqdor
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                controller: _requiredQuantityControllers[index],
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: 'Сони',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                  border: OutlineInputBorder(),
-                ),
-                onFieldSubmitted: (value) {
-                  if (index == _selectedRequiredMaterials.length - 1) {
-                    _addRequiredMaterial();
-                  }
-                },
-              ),
-            ),
-            
-            SizedBox(width: 8),
-            
+
             // O'lcham
             Expanded(
               flex: 2,
@@ -1148,9 +1041,32 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 },
               ),
             ),
-            
+
             SizedBox(width: 8),
-            
+
+            // Kerakli miqdor
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                controller: _requiredQuantityControllers[index],
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: 'Сони',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  border: OutlineInputBorder(),
+                ),
+                onFieldSubmitted: (value) {
+                  if (index == _selectedRequiredMaterials.length - 1) {
+                    _addRequiredMaterial();
+                  }
+                },
+              ),
+            ),
+
+
+
+            SizedBox(width: 8),
+
             // Birlik
             Container(
               width: 60,
@@ -1160,9 +1076,9 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 textAlign: TextAlign.center,
               ),
             ),
-            
+
             SizedBox(width: 8),
-            
+
             // Mavjud miqdor
             Expanded(
               flex: 2,
@@ -1181,13 +1097,13 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 },
               ),
             ),
-            
+
             SizedBox(width: 8),
-            
+
             // Delete button
             IconButton(
               icon: Icon(Icons.delete, color: Colors.red, size: 20),
-              onPressed: _selectedRequiredMaterials.length > 1 
+              onPressed: _selectedRequiredMaterials.length > 1
                   ? () => _removeRequiredMaterial(index)
                   : null,
               padding: EdgeInsets.all(4),
@@ -1204,14 +1120,14 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   }
 
   void _removeMaterial(int index) {
-    // DELETE THIS METHOD - replaced by _removeRequiredMaterial and _removeAvailableMaterial  
+    // DELETE THIS METHOD - replaced by _removeRequiredMaterial and _removeAvailableMaterial
   }
 
   Future<void> _showAddMaterialDialog(int index) async {
     final nameController = TextEditingController();
     final unitController = TextEditingController(text: 'дона');
     bool isLoading = false;
-    
+
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -1265,19 +1181,19 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
               onPressed: isLoading ? null : () async {
                 final name = nameController.text.trim();
                 final unit = unitController.text.trim();
-                
+
                 if (name.isEmpty) {
                   _showErrorSnackBar('Материал номини киритинг');
                   return;
                 }
-                
+
                 if (unit.isEmpty) {
                   _showErrorSnackBar('Ўлчов бирлигини киритинг');
                   return;
                 }
-                
+
                 setDialogState(() => isLoading = true);
-                
+
                 try {
                   final exists = await _materialService.materialExists(name);
                   if (exists) {
@@ -1285,21 +1201,21 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     setDialogState(() => isLoading = false);
                     return;
                   }
-                  
+
                   final newMaterial = MaterialItem(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
                     name: name,
                     unit: unit,
                   );
-                  
+
                   await _materialService.addMaterial(newMaterial);
-                  
+
                   final materials = await _materialService.getMaterials(forceRefresh: true);
                   setState(() {
                     _materials = materials;
                     // Don't reference _selectedMaterials - this is old code
                   });
-                  
+
                   Navigator.pop(context, true);
                   _showSuccessSnackBar('Материал муваффақиятли қўшилди');
                 } catch (e) {
@@ -1339,12 +1255,12 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
               ],
             ),
             SizedBox(height: 16),
-            
+
             // Only URL input fields, no file upload
             ..._imageUrlControllers.asMap().entries.map((entry) {
               final index = entry.key;
               final controller = entry.value;
-              
+
               return Padding(
                 padding: EdgeInsets.only(bottom: 8),
                 child: Row(
@@ -1371,7 +1287,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 ),
               );
             }).toList(),
-            
+
             SizedBox(height: 8),
             ElevatedButton.icon(
               onPressed: () {
@@ -1454,12 +1370,12 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           ),
         ),
         SizedBox(height: 8),
-        
+
         // Mavjud quruvchilar
         ..._selectedBuilders.asMap().entries.map((entry) {
           final index = entry.key;
           final builder = entry.value;
-          
+
           return Container(
             margin: EdgeInsets.only(bottom: 8),
             padding: EdgeInsets.all(12),
@@ -1487,7 +1403,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
             ),
           );
         }).toList(),
-        
+
         // Yangi quruvchi qo'shish
         Container(
           width: double.infinity,
@@ -1518,7 +1434,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     String? selectedBuilder;
     final builderController = TextEditingController();
     bool isAddingNew = false;
-    
+
     await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1612,7 +1528,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   Future<void> _showAddVerifierDialog() async {
     final verifierController = TextEditingController();
     bool isLoading = false;
-    
+
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -1665,43 +1581,43 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
             ElevatedButton(
               onPressed: isLoading ? null : () async {
                 final verifierName = verifierController.text.trim();
-                
+
                 if (verifierName.isEmpty) {
                   _showErrorSnackBar('Тасдиқловчи исмини киритинг');
                   return;
                 }
-                
+
                 if (verifierName.length < 3) {
                   _showErrorSnackBar('Исм камида 3 та ҳарфдан иборат бўлиши керак');
                   return;
                 }
-                
+
                 setDialogState(() => isLoading = true);
-                
+
                 try {
                   print('Checking if verifier exists: $verifierName'); // Debug
                   final exists = await _materialService.verifierExists(verifierName);
                   print('Verifier exists: $exists'); // Debug
-                  
+
                   if (exists) {
                     _showErrorSnackBar('Бу тасдиқловчи аллақачон мавжуд');
                     setDialogState(() => isLoading = false);
                     return;
                   }
-                  
+
                   print('Adding verifier to Firestore: $verifierName'); // Debug
                   await _materialService.addVerifier(verifierName);
                   print('Verifier added successfully'); // Debug
-                  
+
                   print('Refreshing verifiers list...'); // Debug
                   final verifiers = await _materialService.getVerifiers(forceRefresh: true);
                   print('Updated verifiers list: $verifiers'); // Debug
-                  
+
                   setState(() {
                     _verifiers = verifiers;
                     _selectedVerificationPerson = verifierName;
                   });
-                  
+
                   Navigator.pop(context, true);
                   _showSuccessSnackBar('Тасдиқловчи муваффақиятли қўшилди: $verifierName');
                 } catch (e) {
@@ -1725,7 +1641,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   Future<void> _showDeleteMaterialFromSuggestion(MaterialItem material) async {
     // Materialning qurulishlarda ishlatilganini tekshirish
     bool isUsed = await _checkMaterialUsage(material.id);
-    
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1784,7 +1700,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         ],
       ),
     );
-    
+
     if (confirmed == true) {
       await _deleteMaterialFromList(material);
     }
@@ -1798,7 +1714,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           .where('requiredMaterials', arrayContains: {'materialId': materialId})
           .limit(1)
           .get();
-      
+
       return snapshot.docs.isNotEmpty;
     } catch (e) {
       print('Error checking material usage: $e');
@@ -1810,11 +1726,11 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     try {
       // Firebase'dan o'chirish
       await _materialService.deleteMaterial(material.id);
-      
+
       // Local list'dan o'chirish
       setState(() {
         _materials.removeWhere((m) => m.id == material.id);
-        
+
         // Agar bu material hozirda tanlangan bo'lsa, uni bekor qilish
         for (int i = 0; i < _selectedRequiredMaterials.length; i++) {
           if (_selectedRequiredMaterials[i] == material.id) {
@@ -1823,7 +1739,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           }
         }
       });
-      
+
       _showSuccessSnackBar('Материал ўчирилди: ${material.name}');
     } catch (e) {
       _showErrorSnackBar('Хатолик: $e');
@@ -1838,24 +1754,24 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
     }
 
     if (!mounted) return;
-    
+
     setState(() => _isDetecting = true);
 
     try {
       print('Starting material detection from scheme: $schemeUrl');
-      
+
       final detectedMaterials = await MaterialDetectionService().detectMaterialsFromImage(schemeUrl);
-      
+
       if (!mounted) return;
-      
+
       print('Detection completed. Found ${detectedMaterials.length} materials');
-      
-      // Rasm URL'ni saqlash
+
+      // Rasm URL'ни saqlash
       setState(() {
         _detectedImageUrl = schemeUrl;
         _detectedImageFile = null;
       });
-      
+
       if (detectedMaterials.isEmpty) {
         _showErrorSnackBar('Схемада материаллар топилмади');
         return;
@@ -1865,7 +1781,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
 
     } catch (e) {
       if (!mounted) return;
-      
+
       print('Error in material detection: $e');
       _showErrorSnackBar('Хатолик: $e');
     } finally {
@@ -1924,7 +1840,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
             ),
             SizedBox(width: 8),
             Text(
-              PlatformService.isWindows 
+              PlatformService.isWindows
                 ? 'AI аниқлаган материаллар'
                 : 'Материаллар preview',
             ),
@@ -1948,7 +1864,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
                   ),
                 ),
-              
+
               Expanded(
                 child: ListView.builder(
                   itemCount: materials.length,
@@ -1957,8 +1873,8 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     return Card(
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: PlatformService.isWindows 
-                            ? Colors.blue.shade100 
+                          backgroundColor: PlatformService.isWindows
+                            ? Colors.blue.shade100
                             : Colors.orange.shade100,
                           child: Text('${index + 1}'),
                         ),
@@ -2045,7 +1961,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
 
   Future<void> _applyDetectedMaterials(dynamic materialsData) async {
     List<DetectedMaterial> materials;
-    
+
     // Dialog'dan qaytgan ma'lumotni tekshirish
     if (materialsData is List<DetectedMaterial>) {
       materials = materialsData;
@@ -2080,11 +1996,11 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
 
           // Firebase'ga qo'shish
           await _materialService.addMaterial(newMaterial);
-          
+
           setState(() {
             _materials.add(newMaterial);
           });
-          
+
           existingMaterial = newMaterial;
         }
 
@@ -2097,7 +2013,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
           _requiredSizeControllers.add(
             TextEditingController(text: detectedMaterial.size)
           );
-          
+
           // Available materials uchun ham
           _selectedAvailableMaterials.add(existingMaterial.id);
           _availableQuantityControllers.add(TextEditingController());
@@ -2108,7 +2024,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
       }
 
       _showSuccessSnackBar('${materials.length} та материал қўшилди');
-      
+
     } catch (e) {
       print('Error applying detected materials: $e');
       _showErrorSnackBar('Материалларни қўшишда хатолик: $e');
@@ -2118,22 +2034,22 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   // MaterialItem? _findMatchingMaterial(String detectedName) {
   //   // Fuzzy matching - o'xshash nomlarni topish
   //   final normalizedDetected = detectedName.toLowerCase().trim();
-    
+
   //   for (final material in _materials) {
   //     final normalizedMaterial = material.name.toLowerCase().trim();
-      
+
   //     // To'liq mos kelish
   //     if (normalizedMaterial == normalizedDetected) {
   //       return material;
   //     }
-      
+
   //     // Qisman mos kelish
-  //     if (normalizedMaterial.contains(normalizedDetected) || 
+  //     if (normalizedMaterial.contains(normalizedDetected) ||
   //         normalizedDetected.contains(normalizedMaterial)) {
   //       return material;
   //     }
   //   }
-    
+
   //   return null;
   // }
 
@@ -2144,14 +2060,14 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
         name: name,
         unit: 'дона', // Default unit
       );
-      
+
       await _materialService.addMaterial(newMaterial);
-      
+
       // Local list'ni yangilash
       setState(() {
         _materials.add(newMaterial);
       });
-      
+
       return newMaterial;
     } catch (e) {
       print('Error creating new material: $e');
@@ -2162,7 +2078,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   // File'dan material detection
   Future<void> _detectMaterialsFromFile() async {
     if (!mounted) return;
-    
+
     setState(() => _isDetecting = true);
 
     try {
@@ -2178,19 +2094,19 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
 
       final file = File(result.files.single.path!);
       print('Selected file: ${file.path}');
-      
+
       final detectedMaterials = await MaterialDetectionService().detectMaterialsFromFile(file);
-      
+
       if (!mounted) return;
-      
+
       print('Detection completed. Found ${detectedMaterials.length} materials');
-      
+
       // File'ni saqlash
       setState(() {
         _detectedImageFile = file;
         _detectedImageUrl = null;
       });
-      
+
       if (detectedMaterials.isEmpty) {
         _showErrorSnackBar('Расмда материаллар топилмади');
         return;
@@ -2200,7 +2116,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
 
     } catch (e) {
       if (!mounted) return;
-      
+
       print('Error in file material detection: $e');
       _showErrorSnackBar('Хатолик: $e');
     } finally {
@@ -2213,7 +2129,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   // Progress indicator widget
   Widget _buildProgressIndicator() {
     if (!_isDetecting) return SizedBox.shrink();
-    
+
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2313,7 +2229,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
               ],
             ),
           ),
-          
+
           // Image
           GestureDetector(
             onTap: _showFullScreenDetectedImage,
@@ -2375,7 +2291,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     ),
             ),
           ),
-          
+
           // Info
           Container(
             width: double.infinity,
@@ -2411,7 +2327,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
   // Full screen image view
   void _showFullScreenDetectedImage() {
     if (_detectedImageUrl == null && _detectedImageFile == null) return;
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2456,7 +2372,7 @@ Widget _buildQuickAddButtons() {
     {'name': 'Переход', 'size': 'Ø400x300мм', 'icon': Icons.transform, 'color': Colors.purple},
     {'name': 'Отвод', 'size': 'Ø300мм', 'icon': Icons.turn_right, 'color': Colors.teal},
   ];
-  
+
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -2587,12 +2503,12 @@ Widget _buildMaterialsTable() {
             ],
           ),
         ),
-        
+
         // Material rows
         ...List.generate(_selectedRequiredMaterials.length, (index) {
           return _buildExcelStyleMaterialRow(index);
         }),
-        
+
         // Add new row button
         Container(
           width: double.infinity,
@@ -2698,7 +2614,7 @@ void _addQuickMaterial(String materialName, String materialSize) {
     (m) => m.name.toLowerCase().contains(materialName.toLowerCase()),
     orElse: () => MaterialItem(id: '', name: '', unit: ''),
   );
-  
+
   if (existingMaterial.id.isEmpty) {
     // Create new material
     final newMaterial = MaterialItem(
@@ -2706,24 +2622,24 @@ void _addQuickMaterial(String materialName, String materialSize) {
       name: materialName,
       unit: 'дона',
     );
-    
+
     setState(() {
       _materials.add(newMaterial);
       existingMaterial = newMaterial;
     });
   }
-  
+
   // Add to lists
   setState(() {
     _selectedRequiredMaterials.add(existingMaterial!.id);
     _requiredQuantityControllers.add(TextEditingController(text: '1'));
     _requiredSizeControllers.add(TextEditingController(text: materialSize));
-    
+
     _selectedAvailableMaterials.add(existingMaterial!.id);
     _availableQuantityControllers.add(TextEditingController());
     _availableSizeControllers.add(TextEditingController(text: materialSize));
   });
-  
+
   _showSuccessSnackBar('$materialName қўшилди');
 }
 
@@ -2735,7 +2651,7 @@ void _addDetectedMaterials(List<DetectedMaterial> materials) async {
 
   try {
     print('Adding ${materials.length} detected materials...');
-    
+
     // Har bir aniqlangan material uchun
     for (final detectedMaterial in materials) {
       // Mavjud materiallar ro'yxatidan qidirish
@@ -2744,9 +2660,9 @@ void _addDetectedMaterials(List<DetectedMaterial> materials) async {
       // Agar material topilmasa, yangi yaratish
       if (existingMaterial == null) {
         print('Creating new material: ${detectedMaterial.name}');
-        
+
         final newMaterial = MaterialItem(
-          id: DateTime.now().millisecondsSinceEpoch.toString() + 
+          id: DateTime.now().millisecondsSinceEpoch.toString() +
               materials.indexOf(detectedMaterial).toString(),
           name: detectedMaterial.name,
           unit: detectedMaterial.unit,
@@ -2754,11 +2670,11 @@ void _addDetectedMaterials(List<DetectedMaterial> materials) async {
 
         // Firebase'ga qo'shish
         await _materialService.addMaterial(newMaterial);
-        
+
         setState(() {
           _materials.add(newMaterial);
         });
-        
+
         existingMaterial = newMaterial;
       }
 
@@ -2772,7 +2688,7 @@ void _addDetectedMaterials(List<DetectedMaterial> materials) async {
         _requiredSizeControllers.add(
           TextEditingController(text: detectedMaterial.size)
         );
-        
+
         // Available materials (bo'sh qiymatlar bilan)
         _selectedAvailableMaterials.add(existingMaterial.id);
         _availableQuantityControllers.add(TextEditingController(text: '0'));
@@ -2780,14 +2696,14 @@ void _addDetectedMaterials(List<DetectedMaterial> materials) async {
           TextEditingController(text: detectedMaterial.size)
         );
       });
-      
+
       print('Added material: ${detectedMaterial.name} - ${detectedMaterial.quantity} ${detectedMaterial.unit}');
     }
 
     // Success message
     final platformText = PlatformService.isWindows ? 'AI аниқлаган' : 'Танланган';
     _showSuccessSnackBar('$platformText ${materials.length} та материал қўшилди');
-    
+
     // Scroll to bottom to show new materials
     Future.delayed(Duration(milliseconds: 300), () {
       if (mounted) {
@@ -2798,7 +2714,7 @@ void _addDetectedMaterials(List<DetectedMaterial> materials) async {
         );
       }
     });
-    
+
   } catch (e) {
     print('Error adding detected materials: $e');
     _showErrorSnackBar('Материалларни қўшишда хатолик: $e');
@@ -2808,21 +2724,21 @@ void _addDetectedMaterials(List<DetectedMaterial> materials) async {
 MaterialItem? _findMatchingMaterial(String detectedName) {
   // Fuzzy matching - o'xshash nomlarni topish
   final normalizedDetected = detectedName.toLowerCase().trim();
-  
+
   for (final material in _materials) {
     final normalizedMaterial = material.name.toLowerCase().trim();
-    
+
     // To'liq mos kelish
     if (normalizedMaterial == normalizedDetected) {
       return material;
     }
-    
+
     // Qisman mos kelish (50% dan ko'p mos kelishi kerak)
-    if (normalizedMaterial.contains(normalizedDetected) || 
+    if (normalizedMaterial.contains(normalizedDetected) ||
         normalizedDetected.contains(normalizedMaterial)) {
       return material;
     }
-    
+
     // Keyword matching for common materials
     final keywords = [
       'труба', 'трубопровод', 'pipe', 'quvur',
@@ -2831,14 +2747,14 @@ MaterialItem? _findMatchingMaterial(String detectedName) {
       'бетон', 'железобетон', 'кольца', 'плита', 'блок',
       'арматура', 'сетка', 'стержень', 'проволока'
     ];
-    
+
     for (final keyword in keywords) {
       if (normalizedMaterial.contains(keyword) && normalizedDetected.contains(keyword)) {
         return material;
       }
     }
   }
-  
+
   return null;
 }
 
@@ -2853,15 +2769,15 @@ Future<void> _pickAndSaveImageFile() async {
     if (result != null && result.files.single.path != null) {
       final file = File(result.files.single.path!);
       final fileName = result.files.single.name;
-      
+
       // Faylni local path sifatida saqlash
       final localPath = file.path;
-      
+
       // URL controller ga qo'shish
       setState(() {
         _imageUrlControllers.add(TextEditingController(text: localPath));
       });
-      
+
       // Firebase ga saqlash
       await FirebaseService.saveImageUrl(
         localPath,
@@ -2869,7 +2785,7 @@ Future<void> _pickAndSaveImageFile() async {
         fileSize: await file.length(),
         uploadService: 'local_file',
       );
-      
+
       _showSuccessSnackBar('Файл қўшилди: $fileName');
     }
   } catch (e) {

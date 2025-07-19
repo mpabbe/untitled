@@ -1,21 +1,43 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:untitled/screens/login_screen.dart';
 import 'package:untitled/screens/map_screen.dart';
 import 'firebase_options.dart';
 import 'services/material_detection_service.dart';
 import 'models/detected_material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  
+  try {
+    print('DEBUG: Initializing Firebase...');
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('DEBUG: Firebase initialized successfully');
+    
+    // Test Firestore connection
+    try {
+      print('DEBUG: Testing Firestore connection...');
+      await FirebaseFirestore.instance
+          .collection('test')
+          .doc('connection')
+          .get()
+          .timeout(Duration(seconds: 10));
+      print('DEBUG: Firestore connection successful');
+    } catch (e) {
+      print('DEBUG: Firestore connection failed: $e');
+    }
+    
+  } catch (e) {
+    print('DEBUG: Firebase initialization failed: $e');
+  }
+  
   runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
+}class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -24,7 +46,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: MapScreen(),
+      home: LoginScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

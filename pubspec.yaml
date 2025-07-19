@@ -47,6 +47,7 @@ dependencies:
   url_launcher: ^6.3.2
   xml: ^6.5.0
   geoxml: ^2.6.2
+  connectivity_plus: ^6.1.4
 
 dev_dependencies:
   flutter_test:

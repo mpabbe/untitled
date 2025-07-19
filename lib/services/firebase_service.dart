@@ -143,4 +143,146 @@ class FirebaseService {
       throw Exception('Failed to get building: $e');
     }
   }
+
+  // Verifier management methods
+  static Future<List<Map<String, dynamic>>> getAllVerifiers() async {
+    try {
+      final snapshot = await _firestore
+          .collection('verifiers')
+          .orderBy('name')
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        
+        // Null safety for isActive field
+        if (data['isActive'] == null) {
+          data['isActive'] = true;
+        }
+        
+        // Null safety for other fields
+        data['name'] = data['name'] ?? 'Номсиз';
+        data['key'] = data['key'] ?? '';
+        
+        return data;
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get verifiers: $e');
+    }
+  }
+
+  static Future<void> addVerifier(String name, String key) async {
+    try {
+      // Check if key already exists
+      final existingSnapshot = await _firestore
+          .collection('verifiers')
+          .where('key', isEqualTo: key)
+          .limit(1)
+          .get();
+
+      if (existingSnapshot.docs.isNotEmpty) {
+        throw Exception('Бу калит аллақачон мавжуд');
+      }
+
+      await _firestore.collection('verifiers').add({
+        'name': name,
+        'key': key,
+        'isActive': true,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Failed to add verifier: $e');
+    }
+  }
+
+  static Future<void> updateVerifier(String oldKey, String newName, String newKey) async {
+    try {
+      // Find document by old key
+      final snapshot = await _firestore
+          .collection('verifiers')
+          .where('key', isEqualTo: oldKey)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        throw Exception('Тасдиқловчи топилмади');
+      }
+
+      // Check if new key already exists (if changed)
+      if (oldKey != newKey) {
+        final existingSnapshot = await _firestore
+            .collection('verifiers')
+            .where('key', isEqualTo: newKey)
+            .limit(1)
+            .get();
+
+        if (existingSnapshot.docs.isNotEmpty) {
+          throw Exception('Бу калит аллақачон мавжуд');
+        }
+      }
+
+      final docId = snapshot.docs.first.id;
+      await _firestore.collection('verifiers').doc(docId).update({
+        'name': newName,
+        'key': newKey,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update verifier: $e');
+    }
+  }
+
+  static Future<void> updateVerifierStatus(String key, bool isActive) async {
+    try {
+      final snapshot = await _firestore
+          .collection('verifiers')
+          .where('key', isEqualTo: key)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        throw Exception('Тасдиқловчи топилмади');
+      }
+
+      final docId = snapshot.docs.first.id;
+      await _firestore.collection('verifiers').doc(docId).update({
+        'isActive': isActive,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update verifier status: $e');
+    }
+  }
+
+  static Future<void> deleteVerifier(String key) async {
+    try {
+      final snapshot = await _firestore
+          .collection('verifiers')
+          .where('key', isEqualTo: key)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        throw Exception('Тасдиқловчи топилмади');
+      }
+
+      final docId = snapshot.docs.first.id;
+      await _firestore.collection('verifiers').doc(docId).delete();
+    } catch (e) {
+      throw Exception('Failed to delete verifier: $e');
+    }
+  }
+
+  // Update building method (if not exists)
+  static Future<void> updateBuilding(Building building) async {
+    try {
+      await _firestore
+          .collection(_buildingsCollection)
+          .doc(building.id)
+          .update(building.toJson());
+    } catch (e) {
+      throw Exception('Failed to update building: $e');
+    }
+  }
 }
