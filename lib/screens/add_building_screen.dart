@@ -27,12 +27,15 @@ class AddBuildingScreen extends StatefulWidget {
 
 class _AddBuildingScreenState extends State<AddBuildingScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _uniqueNameController = TextEditingController();
+  final _regionNameController = TextEditingController();
+  final _schemeUrlController = TextEditingController();
+  
+  // ... other controllers
 
   // Basic form controllers
   final _serialNumberController = TextEditingController();
   final _locationNameController = TextEditingController();
-  final _uniqueNameController = TextEditingController();
-  final _schemeUrlController = TextEditingController();
   final _kolodetsConditionController = TextEditingController();
   final _commentController = TextEditingController();
   final List<TextEditingController> _imageUrlControllers = [TextEditingController()];
@@ -796,7 +799,7 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _schemeUrlController,
-                    enabled: !_isDetecting,
+                    // enabled: !_isDetecting,
                     decoration: InputDecoration(
                       labelText: 'Схема расми URL',
                       prefixIcon: Icon(Icons.image),
@@ -826,25 +829,25 @@ class _AddBuildingScreenState extends State<AddBuildingScreen> {
                     foregroundColor: Colors.white,
                   ),
                 ),
-                SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: !_isDetecting ? _detectMaterialsFromFile : null,
-                  icon: _isDetecting
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Icon(Icons.file_upload, size: 18),
-                  label: Text(_isDetecting ? 'Ишламоқда...' : 'Файл'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
+                // SizedBox(width: 8),
+                // ElevatedButton.icon(
+                //   onPressed: !_isDetecting ? _detectMaterialsFromFile : null,
+                //   icon: _isDetecting
+                //       ? SizedBox(
+                //           width: 18,
+                //           height: 18,
+                //           child: CircularProgressIndicator(
+                //             strokeWidth: 2,
+                //             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                //           ),
+                //         )
+                //       : Icon(Icons.file_upload, size: 18),
+                //   label: Text(_isDetecting ? 'Ишламоқда...' : 'Файл'),
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Colors.green,
+                //     foregroundColor: Colors.white,
+                //   ),
+                // ),
               ],
             ),
             _buildProgressIndicator(), // Progress indicator qo'shish

@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import 'map_screen.dart';
 import 'verifier_screen.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'user_map_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -15,7 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _keyController = TextEditingController();
   bool _isLoading = false;
-  String _selectedUserType = 'admin';
+  String _selectedUserType = 'user'; // Default user
 
   @override
   void initState() {
@@ -102,24 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(height: isMobile ? 24 : 32),
                         
                         // User type selection
-                        Column(
-                          children: [
-                            RadioListTile<String>(
-                              title: Text('Админ'),
-                              value: 'admin',
-                              groupValue: _selectedUserType,
-                              onChanged: (value) => setState(() => _selectedUserType = value!),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            RadioListTile<String>(
-                              title: Text('Тасдиқловчи'),
-                              value: 'verifier',
-                              groupValue: _selectedUserType,
-                              onChanged: (value) => setState(() => _selectedUserType = value!),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ],
-                        ),
+                        _buildUserTypeSelection(),
                         
                         SizedBox(height: 16),
                         
@@ -228,65 +212,81 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _login() async {
-    if (_selectedUserType == 'admin' && _passwordController.text.isEmpty) {
-      _showError('Парол киритинг');
-      return;
-    }
-    
-    if (_selectedUserType == 'verifier' && _keyController.text.isEmpty) {
-      _showError('Калит киритинг');
-      return;
-    }
+  Widget _buildUserTypeSelection() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        children: [
+          RadioListTile<String>(
+            title: Text('Фойдаланувчи'),
+            subtitle: Text('Колодецларни кўриш'),
+            value: 'user',
+            groupValue: _selectedUserType,
+            onChanged: (value) => setState(() => _selectedUserType = value!),
+          ),
+          Divider(height: 1),
+          RadioListTile<String>(
+            title: Text('Администратор'),
+            subtitle: Text('Тўлиқ бошқарув'),
+            value: 'admin',
+            groupValue: _selectedUserType,
+            onChanged: (value) => setState(() => _selectedUserType = value!),
+          ),
+          Divider(height: 1),
+          RadioListTile<String>(
+            title: Text('Тасдиқловчи'),
+            subtitle: Text('Материалларни тасдиқлаш'),
+            value: 'verifier',
+            groupValue: _selectedUserType,
+            onChanged: (value) => setState(() => _selectedUserType = value!),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Future<void> _login() async {
     setState(() => _isLoading = true);
 
     try {
-      print('DEBUG: Login attempt - User type: $_selectedUserType');
+      bool success = false;
       
-      if (_selectedUserType == 'admin') {
-        print('DEBUG: Attempting admin login...');
-        final success = await AuthService.loginAsAdmin(_passwordController.text);
-        print('DEBUG: Login result: $success');
-        
-        if (success) {
-          print('DEBUG: Navigating to MapScreen...');
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => MapScreen()),
-            );
-          }
-        } else {
-          print('DEBUG: Login failed - showing error');
-          if (mounted) {
-            _showError('Нотўғри парол');
-          }
+      if (_selectedUserType == 'user') {
+        // User uchun _keyController ishlatish kerak, _passwordController emas
+        success = await AuthService.loginAsUser(_keyController.text);
+        if (success && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => UserMapScreen()),
+          );
+        }
+      } else if (_selectedUserType == 'admin') {
+        success = await AuthService.loginAsAdmin(_passwordController.text);
+        if (success && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => MapScreen()),
+          );
         }
       } else {
-        print('DEBUG: Attempting verifier login...');
         final verifierName = await AuthService.loginAsVerifier(_keyController.text);
-        if (verifierName != null) {
-          print('DEBUG: Verifier login successful, navigating...');
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => VerifierScreen()),
-            );
-          }
-        } else {
-          print('DEBUG: Verifier login failed');
-          if (mounted) {
-            _showError('Нотўғри калит ёки фаол эмас');
-          }
+        if (verifierName != null && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => VerifierScreen()),
+          );
         }
       }
+
+      if (!success && mounted) {
+        _showError('Нотўғри маълумотлар');
+      }
     } catch (e) {
-      print('DEBUG: Login exception: $e');
-      print('DEBUG: Exception type: ${e.runtimeType}');
-      print('DEBUG: Stack trace: ${StackTrace.current}');
       if (mounted) {
-        _showError('Хатолик юз берди: $e');
+        _showError('Хатолик: $e');
       }
     } finally {
       if (mounted) {
@@ -331,12 +331,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 }
-
-
-
-
-
-
 
 
 

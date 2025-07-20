@@ -10,3 +10,7 @@ torchvision==0.15.2
 transformers==4.35.0
 ultralytics==8.0.196
 accelerate==0.24.1
+ezdxf>=1.1.0
+matplotlib>=3.7.0
+Pillow>=10.0.0
+numpy>=1.24.0

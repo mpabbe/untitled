@@ -5,6 +5,7 @@ class AuthService {
   static String? _currentUserType;
   static String? _currentVerifierName;
   static String? _currentVerifierKey;
+  static String? _currentUserName;
 
   // Admin login - improved with better error handling
   static Future<bool> loginAsAdmin(String password) async {
@@ -80,11 +81,34 @@ class AuthService {
     return '000$random';
   }
 
+  // User login
+  static Future<bool> loginAsUser(String password) async {
+    try {
+      print('DEBUG: User login attempt with password: "${password}"');
+      
+      const correctPassword = 'user123'; // User uchun parol
+      
+      if (password == correctPassword) {
+        _currentUserType = 'user';
+        _currentUserName = 'User';
+        print('DEBUG: User login successful');
+        return true;
+      }
+      
+      print('DEBUG: User login failed - wrong password');
+      return false;
+    } catch (e) {
+      print('DEBUG: User login error: $e');
+      return false;
+    }
+  }
+
   // Logout
   static void logout() {
     _currentUserType = null;
     _currentVerifierName = null;
     _currentVerifierKey = null;
+    _currentUserName = null;
   }
 
   // Getters
@@ -92,6 +116,7 @@ class AuthService {
   static bool get isVerifier => _currentUserType == 'verifier';
   static String? get currentVerifierName => _currentVerifierName;
   static String? get currentUserType => _currentUserType;
+  static String? get currentUserName => _currentUserName;
 
   // Admin parolni yaratish yoki yangilash
   static Future<bool> createOrUpdateAdminPassword(String newPassword) async {
@@ -137,6 +162,7 @@ class AuthService {
     }
   }
 }
+
 
 
 

@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -17,6 +18,9 @@ import 'builder_report_screen.dart';
 import 'admin_change_history_screen.dart';
 import 'package:geoxml/geoxml.dart';
 import '../services/material_service.dart';
+import 'dart:async';
+import 'user_building_detail_screen.dart';
+import '../services/platform_service.dart';
 
 class MapScreen extends StatefulWidget {
   @override
@@ -44,6 +48,9 @@ class _MapScreenState extends State<MapScreen> {
 
   final MaterialService _materialService = MaterialService();
 
+
+  StreamSubscription<QuerySnapshot>? _buildingsSubscription;
+
   // O'zbekiston chegaralari (asosiy shaharlar atrofida)
   static LatLngBounds _uzbekistanBounds = LatLngBounds(
     LatLng(37.184, 55.997), // Termez atrofi (South-West)
@@ -57,6 +64,7 @@ class _MapScreenState extends State<MapScreen> {
     _loadData();
     _getCurrentLocation();
     _loadKml();
+    _setupRealTimeListener();
 
     _searchController.addListener(() {
       _onSearchChanged(_searchController.text);
@@ -65,6 +73,23 @@ class _MapScreenState extends State<MapScreen> {
     _searchFocusNode.addListener(() {
       setState(() => _showSearchResults = _searchFocusNode.hasFocus && _searchController.text.isNotEmpty);
     });
+  }
+
+  void _setupRealTimeListener() {
+    _buildingsSubscription = FirebaseFirestore.instance
+        .collection('buildings')
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        _loadData();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _buildingsSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -143,7 +168,7 @@ class _MapScreenState extends State<MapScreen> {
         lines.add(Polyline(
           points: points,
           strokeWidth: 3,
-          color: Colors.blue,
+          color: Colors.grey.shade400,
         ));
       }
     }
@@ -197,14 +222,23 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _onBuildingTap(Building building) {
-    // Focus ni tozalash
     FocusScope.of(context).unfocus();
-
     _mapController.move(LatLng(building.latitude, building.longitude), 17);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => BuildingDetailScreen(building: building)),
-    );
+
+    final isAdmin = AuthService.currentUserType == 'admin';
+    final isUser = AuthService.currentUserType == 'user';
+    
+    if (isUser) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => UserBuildingDetailScreen(building: building)),
+      );
+    } else if (isAdmin) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => BuildingDetailScreen(building: building)),
+      ).then((_) => _loadData());
+    }
 
     _searchController.clear();
     setState(() {
@@ -357,7 +391,8 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWindows = Platform.isWindows;
+    final isAdmin = AuthService.currentUserType == 'admin';
+    final isWindows = PlatformService.isWindows;
 
     return Scaffold(
       appBar: AppBar(
@@ -365,36 +400,22 @@ class _MapScreenState extends State<MapScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
-          // Change History button (faqat admin uchun)
-          if (AuthService.currentUserType == 'admin')
+          if (isAdmin) ...[
             IconButton(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => AdminChangeHistoryScreen()),
               ),
               icon: Icon(Icons.history),
-              tooltip: 'Ўзгариш тарихи',
             ),
-          // Verifier management
-          if (AuthService.currentUserType == 'admin')
             IconButton(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => VerifierManagementScreen()),
               ),
               icon: Icon(Icons.people),
-              tooltip: 'Тасдиқловчилар',
             ),
-          // Builder report
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => BuilderReportScreen()),
-            ),
-            icon: Icon(Icons.assessment),
-            tooltip: 'Ҳисобот',
-          ),
-          // Logout
+          ],
           IconButton(
             onPressed: () {
               AuthService.logout();
@@ -407,6 +428,17 @@ class _MapScreenState extends State<MapScreen> {
           ),
         ],
       ),
+      floatingActionButton: isAdmin ? FloatingActionButton(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AddBuildingScreen(
+            latitude: _center.latitude,
+            longitude: _center.longitude,
+          )),
+        ).then((_) => _loadData()),
+        child: Icon(Icons.add),
+        backgroundColor: Colors.blue,
+      ) : null,
       backgroundColor: Colors.grey.shade50,
       body: Row(
         children: [
@@ -430,15 +462,17 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                     onLongPress: (tapPosition, point) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AddBuildingScreen(
-                            latitude: point.latitude,
-                            longitude: point.longitude,
+                      if (AuthService.currentUserType == 'admin') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AddBuildingScreen(
+                              latitude: point.latitude,
+                              longitude: point.longitude,
+                            ),
                           ),
-                        ),
-                      );
+                        ).then((_) => _loadData());
+                      }
                     },
                   ),
                   children: [
@@ -606,13 +640,14 @@ class _MapScreenState extends State<MapScreen> {
                               ),
                             ),
                           ),
-                          
+
                           SizedBox(width: 12),
-                          
+
                           // Verifier filter dropdown - kichikroq
                           Expanded(
                             flex: 2,
                             child: Container(
+                              height: 56, // Fixed height qo'shamiz
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
@@ -628,17 +663,10 @@ class _MapScreenState extends State<MapScreen> {
                                   ? Container(
                                       height: 56,
                                       child: Center(
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
-                                            ),
-                                            SizedBox(height: 4),
-                                            Text('Юкланмоқда...', style: TextStyle(fontSize: 10)),
-                                          ],
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
                                         ),
                                       ),
                                     )
@@ -646,68 +674,47 @@ class _MapScreenState extends State<MapScreen> {
                                       ? Container(
                                           height: 56,
                                           child: Center(
-                                            child: Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                Icon(Icons.error_outline, size: 16, color: Colors.red),
-                                                Text('Маълумот йўқ', style: TextStyle(fontSize: 10, color: Colors.red)),
-                                              ],
-                                            ),
+                                            child: Icon(Icons.error_outline, size: 16, color: Colors.red),
                                           ),
                                         )
-                                      : Container(
-                                          width: double.infinity,
-                                          child: DropdownButtonFormField<String>(
-                                            value: _selectedBuilder,
-                                            decoration: InputDecoration(
-                                              labelText: 'Қурувчи',
-                                              prefixIcon: Icon(Icons.construction, color: Colors.blue, size: 18),
-                                              border: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                              labelStyle: TextStyle(fontSize: 12),
+                                      : DropdownButtonFormField<String>(
+                                          value: _selectedBuilder,
+                                          decoration: InputDecoration(
+                                            labelText: 'Қурувчи',
+                                            prefixIcon: Icon(Icons.construction, color: Colors.blue, size: 18),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
-                                            items: _builders.map((builder) {
-                                              // Har bir qурувчи uchun binolar sonini hisoblash
-                                              final buildingCount = builder == 'Барчаси' 
-                                                  ? _buildings.length
-                                                  : _buildings.where((b) => 
-                                                      b.builders != null && b.builders!.contains(builder)
-                                                    ).length;
-                                              
-                                              return DropdownMenuItem(
-                                                value: builder,
-                                                child: Row(
-                                                  children: [
-                                                    if (builder == 'Барчаси')
-                                                      Icon(Icons.all_inclusive, size: 14, color: Colors.green)
-                                                    else
-                                                      Icon(Icons.construction, size: 14, color: Colors.blue),
-                                                    SizedBox(width: 6),
-                                                    Expanded(
-                                                      child: Text(
-                                                        '$builder ($buildingCount)',
-                                                        overflow: TextOverflow.ellipsis,
-                                                        style: TextStyle(fontSize: 12),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            }).toList(),
-                                            onChanged: (value) {
-                                              print('Selected builder: $value'); // Debug
-                                              _filterBuildingsByBuilder(value);
-                                            },
-                                            style: TextStyle(fontSize: 12, color: Colors.black),
+                                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            labelStyle: TextStyle(fontSize: 12),
                                           ),
+                                          isExpanded: true, // Bu muhim!
+                                          items: _builders.map((builder) {
+                                            final buildingCount = builder == 'Барчаси'
+                                                ? _buildings.length
+                                                : _buildings.where((b) =>
+                                                    b.builders != null && b.builders!.contains(builder)
+                                                  ).length;
+
+                                            return DropdownMenuItem(
+                                              value: builder,
+                                              child: Text(
+                                                '$builder ($buildingCount)',
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(fontSize: 12),
+                                              ),
+                                            );
+                                          }).toList(),
+                                          onChanged: (value) {
+                                            _filterBuildingsByBuilder(value);
+                                          },
+                                          style: TextStyle(fontSize: 12, color: Colors.black),
                                         ),
                             ),
                           )
                         ],
                       ),
-                      
+
                       // Search results dropdown - faqat search qilganda ko'rinadi
                       if (_showSearchResults && _searchResults.isNotEmpty)
                         Container(
