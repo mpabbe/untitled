@@ -1,0 +1,61 @@
+# Minimum macOS deployment target
+platform :osx, '10.15'
+
+# Disable CocoaPods stats to improve Flutter build speed
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+# Map Xcode build configurations
+project 'Runner', {
+  'Debug'   => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+# Helper method to locate FLUTTER_ROOT from generated xcconfig
+def flutter_root
+  config_path = File.expand_path('../Flutter/ephemeral/Flutter-Generated.xcconfig', __FILE__)
+
+  unless File.exist?(config_path)
+    raise <<~ERROR
+      #{config_path} must exist.
+      If you're running pod install manually, ensure you run `flutter pub get` first.
+    ERROR
+  end
+
+  File.foreach(config_path) do |line|
+    if line =~ /FLUTTER_ROOT=(.*)/
+      return Regexp.last_match(1).strip
+    end
+  end
+
+  raise <<~ERROR
+    FLUTTER_ROOT not found in #{config_path}.
+    Try deleting Flutter-Generated.xcconfig, then run `flutter pub get`.
+  ERROR
+end
+
+# Load Flutter CocoaPods helper script
+require File.expand_path('packages/flutter_tools/bin/podhelper', flutter_root)
+
+# Set up pods for macOS Flutter app
+flutter_macos_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  # Install all Flutter-related pods
+  flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
+
+  # Unit test target
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+# Post-install adjustments
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_macos_build_settings(target)
+  end
+end

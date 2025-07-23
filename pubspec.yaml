@@ -49,6 +49,10 @@ dependencies:
   geoxml: ^2.6.1 # yoki undan past versiya
   connectivity_plus: ^6.1.4
 
+  package_info_plus: ^8.0.2
+  dio: ^5.4.0
+  path_provider: ^2.1.2
+
 dev_dependencies:
   flutter_lints: ^3.0.0
 

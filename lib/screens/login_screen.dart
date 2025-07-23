@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // kDebugMode uchun
-import 'dart:io';
+import 'package:flutter/foundation.dart'; // kDebugMode va kIsWeb uchun
+// import 'dart:io'; // Web uchun olib tashlang yoki shartli import qiling
 import '../services/auth_service.dart';
 import 'map_screen.dart';
 import 'verifier_screen.dart';
@@ -21,16 +21,32 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Windows platform check
-    print('DEBUG: Platform: ${Platform.operatingSystem}');
-    print('DEBUG: Is Windows: ${Platform.isWindows}');
-    
+
+    // Platform check - web-safe version
+    _checkPlatform();
+
     // Admin parolni tekshirish va yaratish
     _ensureAdminSetup();
-    
+
     // Check internet connection
     _checkConnectivity();
+  }
+
+  void _checkPlatform() {
+    if (kIsWeb) {
+      print('DEBUG: Platform: web');
+      print('DEBUG: Running on web browser');
+    } else {
+      // Faqat mobile/desktop platformlarda dart:io ishlatish
+      try {
+        // dart:io ni conditional import qilgan holda ishlatish kerak
+        // Hozircha web-safe versiya:
+        print('DEBUG: Platform: mobile/desktop');
+        print('DEBUG: Not running on web');
+      } catch (e) {
+        print('DEBUG: Platform detection error: $e');
+      }
+    }
   }
 
   Future<void> _ensureAdminSetup() async {
@@ -43,16 +59,36 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkConnectivity() async {
-    try {
-      print('DEBUG: Checking internet connectivity...');
-      final result = await InternetAddress.lookup('google.com');
-      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
-        print('DEBUG: Internet connection available');
+    if (kIsWeb) {
+      // Web uchun connectivity tekshirish
+      print('DEBUG: Web environment - skipping InternetAddress lookup');
+      // Web da internetni boshqacha tekshirish mumkin
+      try {
+        // Connectivity plus package ishlatish
+        final connectivityResult = await Connectivity().checkConnectivity();
+        if (connectivityResult != ConnectivityResult.none) {
+          print('DEBUG: Internet connection available (web)');
+        } else {
+          print('DEBUG: No internet connection (web)');
+          if (mounted) {
+            _showError('Интернет алоқаси йўқ');
+          }
+        }
+      } catch (e) {
+        print('DEBUG: Connectivity check error: $e');
       }
-    } catch (e) {
-      print('DEBUG: No internet connection: $e');
-      if (mounted) {
-        _showError('Интернет алоқаси йўқ');
+    } else {
+      // Mobile/desktop uchun
+      try {
+        print('DEBUG: Checking internet connectivity...');
+        // dart:io dan InternetAddress ishlatish faqat non-web da
+        // Bu qismni conditional import bilan hal qilish kerak
+        print('DEBUG: Internet connection check skipped for now');
+      } catch (e) {
+        print('DEBUG: No internet connection: $e');
+        if (mounted) {
+          _showError('Интернет алоқаси йўқ');
+        }
       }
     }
   }
@@ -63,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
     final isMobile = screenWidth < 500;
-    
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -87,26 +123,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.location_city, 
-                          size: isMobile ? 48 : 64, 
-                          color: Colors.blue
+                            Icons.location_city,
+                            size: isMobile ? 48 : 64,
+                            color: Colors.blue
                         ),
                         SizedBox(height: isMobile ? 12 : 16),
                         Text(
                           'Колодец Бошқаруви',
                           style: TextStyle(
-                            fontSize: isMobile ? 20 : 24, 
-                            fontWeight: FontWeight.bold
+                              fontSize: isMobile ? 20 : 24,
+                              fontWeight: FontWeight.bold
                           ),
                           textAlign: TextAlign.center,
                         ),
                         SizedBox(height: isMobile ? 24 : 32),
-                        
+
                         // User type selection
                         _buildUserTypeSelection(),
-                        
+
                         SizedBox(height: 16),
-                        
+
                         // Input field
                         TextFormField(
                           controller: _selectedUserType == 'admin' ? _passwordController : _keyController,
@@ -115,18 +151,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             prefixIcon: Icon(_selectedUserType == 'admin' ? Icons.lock : Icons.key),
                             border: OutlineInputBorder(),
                             contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12, 
-                              vertical: isMobile ? 12 : 16
+                                horizontal: 12,
+                                vertical: isMobile ? 12 : 16
                             ),
                           ),
                           obscureText: _selectedUserType == 'admin',
                           enabled: !_isLoading,
                         ),
-                        
+
                         SizedBox(height: isMobile ? 20 : 24),
-                        
+
                         // Test ma'lumotlari (faqat debug mode'da)
-                        if (kDebugMode) 
+                        if (kDebugMode)
                           Container(
                             margin: EdgeInsets.only(bottom: 16),
                             padding: EdgeInsets.all(12),
@@ -153,6 +189,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     color: Colors.blue.shade700,
                                   ),
                                 ),
+                                if (kIsWeb)
+                                  Text(
+                                    'Platform: Web Browser',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.green.shade700,
+                                    ),
+                                  ),
                                 Row(
                                   children: [
                                     TextButton(
@@ -174,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                           ),
-                        
+
                         // Login button
                         SizedBox(
                           width: double.infinity,
@@ -187,17 +231,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             child: _isLoading
                                 ? SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
                                 : Text(
-                                    'Кириш',
-                                    style: TextStyle(fontSize: isMobile ? 16 : 18),
-                                  ),
+                              'Кириш',
+                              style: TextStyle(fontSize: isMobile ? 16 : 18),
+                            ),
                           ),
                         ),
                       ],
@@ -253,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       bool success = false;
-      
+
       if (_selectedUserType == 'user') {
         // User uchun _keyController ishlatish kerak, _passwordController emas
         success = await AuthService.loginAsUser(_keyController.text);
@@ -297,12 +341,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String message) {
     print('DEBUG: Showing error: $message');
-    
+
     if (!mounted) {
       print('DEBUG: Widget not mounted, cannot show error');
       return;
     }
-    
+
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -319,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text('Хатолик'),
-          content: Text(message),
+          content: Text('Хатолик'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -331,6 +375,3 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 }
-
-
-

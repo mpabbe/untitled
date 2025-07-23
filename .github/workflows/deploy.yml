@@ -1,0 +1,97 @@
+name: Build and Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.1)'
+        required: true
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          
+      - name: Get dependencies
+        run: flutter pub get
+        
+      - name: Build APK
+        run: flutter build apk --release
+        
+      - name: Upload to Firebase Storage
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          
+      - name: Upload APK
+        run: |
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          gsutil cp build/app/outputs/flutter-apk/app-release.apk gs://your-bucket/releases/android/app-${VERSION}.apk
+          
+      - name: Update Firestore
+        run: |
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          curl -X PATCH \
+            "https://firestore.googleapis.com/v1/projects/your-project/databases/(default)/documents/app_versions/android" \
+            -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "fields": {
+                "version": {"stringValue": "'${VERSION#v}'"},
+                "downloadUrl": {"stringValue": "https://storage.googleapis.com/your-bucket/releases/android/app-'${VERSION}'.apk"},
+                "releaseDate": {"timestampValue": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}
+              }
+            }'
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          
+      - name: Get dependencies
+        run: flutter pub get
+        
+      - name: Build Windows
+        run: flutter build windows --release
+        
+      - name: Create Installer
+        run: |
+          python build.py
+          
+      - name: Upload to Firebase Storage
+        run: |
+          $VERSION = "${{ github.event.inputs.version || github.ref_name }}"
+          gcloud auth activate-service-account --key-file="${{ secrets.FIREBASE_SERVICE_ACCOUNT_FILE }}"
+          gsutil cp installer/untitled_Windows.zip gs://your-bucket/releases/windows/app-${VERSION}.zip
+          
+      - name: Update Firestore
+        run: |
+          $VERSION = "${{ github.event.inputs.version || github.ref_name }}"
+          $TOKEN = gcloud auth print-access-token
+          Invoke-RestMethod -Uri "https://firestore.googleapis.com/v1/projects/your-project/databases/(default)/documents/app_versions/windows" -Method PATCH -Headers @{"Authorization"="Bearer $TOKEN"; "Content-Type"="application/json"} -Body (@{
+            fields = @{
+              version = @{stringValue = $VERSION.TrimStart('v')}
+              downloadUrl = @{stringValue = "https://storage.googleapis.com/your-bucket/releases/windows/app-$VERSION.zip"}
+              releaseDate = @{timestampValue = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")}
+            }
+          } | ConvertTo-Json -Depth 3)

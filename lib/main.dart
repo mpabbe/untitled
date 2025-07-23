@@ -8,6 +8,7 @@ import 'services/material_detection_service.dart';
 import 'models/detected_material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
+import 'services/update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,9 +47,29 @@ void main() async {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: LoginScreen(),
+      home: AppWrapper(),
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+class AppWrapper extends StatefulWidget {
+  @override
+  _AppWrapperState createState() => _AppWrapperState();
+}
+
+class _AppWrapperState extends State<AppWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkAndShowUpdate(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LoginScreen();
   }
 }
 
