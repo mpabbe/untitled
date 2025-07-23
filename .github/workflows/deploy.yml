@@ -13,10 +13,34 @@ on:
         required: true
 
 jobs:
-  build-android:
+  notify-start:
     runs-on: ubuntu-latest
     steps:
+      - name: Notify Deployment Start
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "text": "🚀 <b>Deployment Started</b>\n\n📱 <b>Project:</b> untitled\n🌿 <b>Branch:</b> ${{ github.ref_name }}\n👤 <b>Triggered by:</b> ${{ github.actor }}\n⏰ <b>Time:</b> $(date -u +\"%Y-%m-%d %H:%M:%S UTC\")\n\n🔄 Building Android and Windows versions...",
+              "parse_mode": "HTML"
+            }'
+
+  build-android:
+    runs-on: ubuntu-latest
+    needs: notify-start
+    steps:
       - uses: actions/checkout@v4
+      
+      - name: Notify Android Build Start
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "text": "🤖 <b>Android Build Started</b>\n\n📦 Setting up environment...\n• Java 17\n• Flutter 3.32.6\n• Dependencies",
+              "parse_mode": "HTML"
+            }'
       
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -28,13 +52,31 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.32.6'
+          channel: 'stable'
           
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Clean and get dependencies
+        run: |
+          flutter clean
+          flutter pub get
+          
+      - name: Notify Android Building
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "text": "🔨 <b>Building Android APK...</b>\n\n⚙️ Running: flutter build apk --release",
+              "parse_mode": "HTML"
+            }'
         
       - name: Build APK
         run: flutter build apk --release
         
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: just-for-test-2c462
+          
       - name: Upload to Firebase Storage
         uses: google-github-actions/auth@v2
         with:
@@ -46,10 +88,22 @@ jobs:
           VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           
+      - name: Notify Android Upload
+        run: |
+          VERSION="${{ github.event.inputs.version || steps.version.outputs.version }}"
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "text": "☁️ <b>Uploading Android APK...</b>\n\n📱 <b>Version:</b> '${VERSION}'\n🔗 <b>Storage:</b> Firebase Storage\n📊 <b>Database:</b> Firestore",
+              "parse_mode": "HTML"
+            }'
+          
       - name: Upload APK
         run: |
           VERSION="${{ github.event.inputs.version || steps.version.outputs.version }}"
-          gsutil cp build/app/outputs/flutter-apk/app-release.apk gs://just-for-test-2c462.firebasestorage.app/releases/android/app-${VERSION}.apk
+          gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+          gsutil -m cp build/app/outputs/flutter-apk/app-release.apk gs://just-for-test-2c462.firebasestorage.app/releases/android/app-${VERSION}.apk
           
       - name: Update Firestore
         run: |
@@ -66,38 +120,77 @@ jobs:
                 "description": {"stringValue": "Latest release from branch"}
               }
             }'
+            
+      - name: Notify Android Success
+        if: success()
+        run: |
+          VERSION="${{ github.event.inputs.version || steps.version.outputs.version }}"
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "text": "✅ <b>Android Build Completed!</b>\n\n📱 <b>Version:</b> '${VERSION}'\n📦 <b>APK Size:</b> $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)\n🔗 <b>Download:</b> https://storage.googleapis.com/just-for-test-2c462.firebasestorage.app/releases/android/app-'${VERSION}'.apk\n\n🎯 Ready for installation!",
+              "parse_mode": "HTML"
+            }'
+            
+      - name: Notify Android Failure
+        if: failure()
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "text": "❌ <b>Android Build Failed!</b>\n\n🔍 Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "parse_mode": "HTML"
+            }'
 
   build-windows:
     runs-on: windows-latest
+    needs: notify-start
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Notify Windows Build Start
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -H "Content-Type: application/json" -d '{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"🪟 <b>Windows Build Started</b>\\n\\n📦 Setting up environment...\\n• Flutter 3.32.6\\n• Python Build Script\", \"parse_mode\": \"HTML\"}'
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.32.6'
+          channel: 'stable'
           
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Clean and get dependencies
+        run: |
+          flutter clean
+          flutter pub get
+          
+      - name: Notify Windows Building
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -H "Content-Type: application/json" -d '{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"🔨 <b>Building Windows App...</b>\\n\\n⚙️ Running: flutter build windows --release\", \"parse_mode\": \"HTML\"}'
         
       - name: Build Windows
         run: flutter build windows --release
         
       - name: Create Installer
-        run: |
-          python build.py
-          
+        run: python build.py
+        
       - name: Get version from pubspec
         id: version
         run: |
           $VERSION = (Select-String -Path "pubspec.yaml" -Pattern "^version:").Line.Split(" ")[1].Split("+")[0]
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
           
+      - name: Notify Windows Upload
+        run: |
+          $VERSION = "${{ github.event.inputs.version || steps.version.outputs.version }}"
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -H "Content-Type: application/json" -d ('{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"☁️ <b>Uploading Windows Installer...</b>\\n\\n🪟 <b>Version:</b> ' + $VERSION + '\\n🔗 <b>Storage:</b> Firebase Storage\\n📊 <b>Database:</b> Firestore\", \"parse_mode\": \"HTML\"}')
+          
       - name: Upload to Firebase Storage
         run: |
           $VERSION = "${{ github.event.inputs.version || steps.version.outputs.version }}"
           gcloud auth activate-service-account --key-file="${{ secrets.FIREBASE_SERVICE_ACCOUNT_FILE }}"
-          gsutil cp installer/untitled_Windows.zip gs://just-for-test-2c462.firebasestorage.app/releases/windows/app-${VERSION}.zip
+          gsutil -m cp installer/untitled_Windows.zip gs://just-for-test-2c462.firebasestorage.app/releases/windows/app-${VERSION}.zip
           
       - name: Update Firestore
         run: |
@@ -111,3 +204,38 @@ jobs:
               description = @{stringValue = "Latest release from branch"}
             }
           } | ConvertTo-Json -Depth 3)
+          
+      - name: Notify Windows Success
+        if: success()
+        run: |
+          $VERSION = "${{ github.event.inputs.version || steps.version.outputs.version }}"
+          $SIZE = (Get-Item "installer/untitled_Windows.zip").Length / 1MB
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -H "Content-Type: application/json" -d ('{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"✅ <b>Windows Build Completed!</b>\\n\\n🪟 <b>Version:</b> ' + $VERSION + '\\n📦 <b>ZIP Size:</b> ' + [math]::Round($SIZE, 1) + ' MB\\n🔗 <b>Download:</b> https://storage.googleapis.com/just-for-test-2c462.firebasestorage.app/releases/windows/app-' + $VERSION + '.zip\\n\\n🎯 Ready for installation!\", \"parse_mode\": \"HTML\"}')
+          
+      - name: Notify Windows Failure
+        if: failure()
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -H "Content-Type: application/json" -d '{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"❌ <b>Windows Build Failed!</b>\\n\\n🔍 Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\", \"parse_mode\": \"HTML\"}'
+
+  notify-completion:
+    runs-on: ubuntu-latest
+    needs: [build-android, build-windows]
+    if: always()
+    steps:
+      - name: Notify Deployment Complete
+        run: |
+          if [[ "${{ needs.build-android.result }}" == "success" && "${{ needs.build-windows.result }}" == "success" ]]; then
+            STATUS="✅ <b>Deployment Completed Successfully!</b>"
+            MESSAGE="🎉 Both Android and Windows builds are ready!\n\n📱 Android APK: Ready\n🪟 Windows ZIP: Ready\n\n🚀 Users can now update their apps!"
+          else
+            STATUS="⚠️ <b>Deployment Completed with Issues</b>"
+            MESSAGE="📱 Android: ${{ needs.build-android.result }}\n🪟 Windows: ${{ needs.build-windows.result }}\n\n🔍 Check individual build logs for details."
+          fi
+          
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "text": "'$STATUS'\n\n'$MESSAGE'\n\n⏱️ <b>Total Time:</b> ${{ github.event.head_commit.timestamp }}\n🔗 <b>Workflow:</b> https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "parse_mode": "HTML"
+            }'
