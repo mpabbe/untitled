@@ -2,6 +2,8 @@ name: Build and Deploy
 
 on:
   push:
+    branches:
+      - release
     tags:
       - 'v*'
   workflow_dispatch:
@@ -38,23 +40,30 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           
+      - name: Get version from pubspec
+        id: version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
       - name: Upload APK
         run: |
-          VERSION=${{ github.event.inputs.version || github.ref_name }}
-          gsutil cp build/app/outputs/flutter-apk/app-release.apk gs://your-bucket/releases/android/app-${VERSION}.apk
+          VERSION="${{ github.event.inputs.version || steps.version.outputs.version }}"
+          gsutil cp build/app/outputs/flutter-apk/app-release.apk gs://just-for-test-2c462.firebasestorage.app/releases/android/app-${VERSION}.apk
           
       - name: Update Firestore
         run: |
-          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          VERSION="${{ github.event.inputs.version || steps.version.outputs.version }}"
           curl -X PATCH \
-            "https://firestore.googleapis.com/v1/projects/your-project/databases/(default)/documents/app_versions/android" \
+            "https://firestore.googleapis.com/v1/projects/just-for-test-2c462/databases/(default)/documents/app_versions/android" \
             -H "Authorization: Bearer $(gcloud auth print-access-token)" \
             -H "Content-Type: application/json" \
             -d '{
               "fields": {
-                "version": {"stringValue": "'${VERSION#v}'"},
-                "downloadUrl": {"stringValue": "https://storage.googleapis.com/your-bucket/releases/android/app-'${VERSION}'.apk"},
-                "releaseDate": {"timestampValue": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}
+                "version": {"stringValue": "'${VERSION}'"},
+                "downloadUrl": {"stringValue": "https://storage.googleapis.com/just-for-test-2c462.firebasestorage.app/releases/android/app-'${VERSION}'.apk"},
+                "releaseDate": {"timestampValue": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"},
+                "description": {"stringValue": "Latest release from branch"}
               }
             }'
 
@@ -78,20 +87,27 @@ jobs:
         run: |
           python build.py
           
+      - name: Get version from pubspec
+        id: version
+        run: |
+          $VERSION = (Select-String -Path "pubspec.yaml" -Pattern "^version:").Line.Split(" ")[1].Split("+")[0]
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          
       - name: Upload to Firebase Storage
         run: |
-          $VERSION = "${{ github.event.inputs.version || github.ref_name }}"
+          $VERSION = "${{ github.event.inputs.version || steps.version.outputs.version }}"
           gcloud auth activate-service-account --key-file="${{ secrets.FIREBASE_SERVICE_ACCOUNT_FILE }}"
-          gsutil cp installer/untitled_Windows.zip gs://your-bucket/releases/windows/app-${VERSION}.zip
+          gsutil cp installer/untitled_Windows.zip gs://just-for-test-2c462.firebasestorage.app/releases/windows/app-${VERSION}.zip
           
       - name: Update Firestore
         run: |
-          $VERSION = "${{ github.event.inputs.version || github.ref_name }}"
+          $VERSION = "${{ github.event.inputs.version || steps.version.outputs.version }}"
           $TOKEN = gcloud auth print-access-token
-          Invoke-RestMethod -Uri "https://firestore.googleapis.com/v1/projects/your-project/databases/(default)/documents/app_versions/windows" -Method PATCH -Headers @{"Authorization"="Bearer $TOKEN"; "Content-Type"="application/json"} -Body (@{
+          Invoke-RestMethod -Uri "https://firestore.googleapis.com/v1/projects/just-for-test-2c462/databases/(default)/documents/app_versions/windows" -Method PATCH -Headers @{"Authorization"="Bearer $TOKEN"; "Content-Type"="application/json"} -Body (@{
             fields = @{
-              version = @{stringValue = $VERSION.TrimStart('v')}
-              downloadUrl = @{stringValue = "https://storage.googleapis.com/your-bucket/releases/windows/app-$VERSION.zip"}
+              version = @{stringValue = $VERSION}
+              downloadUrl = @{stringValue = "https://storage.googleapis.com/just-for-test-2c462.firebasestorage.app/releases/windows/app-$VERSION.zip"}
               releaseDate = @{timestampValue = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")}
+              description = @{stringValue = "Latest release from branch"}
             }
           } | ConvertTo-Json -Depth 3)
